@@ -139,4 +139,15 @@ struct BuildTests {
         let again = game.demolish(x: cx, y: cy, player: 0)
         #expect(!again)
     }
+
+    @Test func roadPreviewShowsFinalShapes() throws {
+        let game = try makeGame()
+        let road = try #require(game.buildings[411])
+        // L-förmiger Weg: drei Felder nach Osten, dann zwei nach Süden.
+        let path = [(x: 20, y: 20), (x: 21, y: 20), (x: 22, y: 20), (x: 22, y: 21), (x: 22, y: 22)]
+        let preview = game.roadPreview(road, path: path)
+        #expect(preview.map(\.building.id) == [411, 411, 412, 411, 411])
+        #expect(preview[2].rotation == 2)  // Kurve mit Anschlüssen West und Süd
+        #expect(preview[0].rotation == 0 && preview[3].rotation == 1)
+    }
 }

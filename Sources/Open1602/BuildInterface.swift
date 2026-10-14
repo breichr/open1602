@@ -200,12 +200,18 @@ final class BuildInterface {
             return draws
         case .build:
             guard let type = selected else { return [] }
-            let cells: [(x: Int, y: Int)] =
-                type.kind == "STRASSE" ? Self.roadPath(from: dragStart ?? hover, to: hover) : [hover]
+            // Straßen: Form jedes Feldes wie nach dem Bau (Kurven, T-Stücke, Anschluss an vorhandene Wege).
+            let cells: [(x: Int, y: Int, building: BuildingType, rotation: Int)] =
+                type.kind == "STRASSE"
+                ? game.roadPreview(type, path: Self.roadPath(from: dragStart ?? hover, to: hover))
+                : [(hover.x, hover.y, type, type.rotateStride > 0 ? rotation : 0)]
             var draws: [SpriteDraw] = []
             for cell in cells {
-                let ok = game.check(type, x: cell.x, y: cell.y, rotation: rotation, player: Self.player).isEmpty
-                let rotation = type.rotateStride > 0 ? self.rotation : 0
+                // Vorhandene Wege auf dem Pfad bleiben einfach stehen und sind deshalb kein Fehler.
+                let existingRoad = type.kind == "STRASSE" && game.world.tile(x: cell.x, y: cell.y)?.building.kind == "STRASSE"
+                let ok = existingRoad || game.check(type, x: cell.x, y: cell.y, rotation: rotation, player: Self.player).isEmpty
+                let type = cell.building
+                let rotation = cell.rotation
                 let (w, h) = type.footprint(rotation: rotation)
                 // Teile in Zeichenreihenfolge (hinten nach vorne).
                 var parts: [(Int, Int)] = []
@@ -226,6 +232,30 @@ final class BuildInterface {
             return draws
         }
     }
+
+    // MARK: Einflussbereich
+
+    /// Im Baumodus: eigener Einflussbereich hell, Radius eines geplanten Kontors bläulich.
+    func tileTint(session: WorldSession) -> ((Int, Int) -> SIMD4<UInt8>?)? {
+        guard tool == .build, let type = selected else { return nil }
+        let game = session.game
+        let planned = hover.flatMap { game.influencePreview(type, x: $0.x, y: $0.y, rotation: rotation) }
+        return { x, y in
+            // Nur Land markieren, nicht das Wasser rund um die Insel.
+            guard let tile = game.world.tile(x: x, y: y), tile.building.elevation > 0 else { return nil }
+            if let p = planned {
+                let dx = Float(x) + 0.5 - p.x
+                let dy = Float(y) + 0.5 - p.y
+                if dx * dx + dy * dy <= p.radius * p.radius {
+                    return Self.plannedInfluenceTint
+                }
+            }
+            return game.isInfluenced(x: x, y: y, by: Self.player) ? Self.influenceTint : nil
+        }
+    }
+
+    static let influenceTint = SIMD4<UInt8>(255, 245, 190, 70)
+    static let plannedInfluenceTint = SIMD4<UInt8>(140, 200, 255, 80)
 
     // MARK: Leiste und Statuszeile
 

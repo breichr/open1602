@@ -147,6 +147,7 @@ public struct IsometricLayout: Sendable {
     public func sprites(
         for grid: some TileGrid, visible: (min: SIMD2<Float>, max: SIMD2<Float>)? = nil, timeMs: Int = 0,
         figures: [FigureSprite] = [], tileOffset: Int = 0,
+        tileTint: ((Int, Int) -> SIMD4<UInt8>?)? = nil,
         spriteSize: (Int) -> (width: Int, height: Int)?
     ) -> [SpriteDraw] {
         let (gw, gh) = screenGrid
@@ -193,7 +194,8 @@ public struct IsometricLayout: Sendable {
                         let elevation = Float(zoom.scaledElevation(tile.building.elevation))
                         draws.append(SpriteDraw(
                             index: index,
-                            position: SIMD2(origin.x, origin.y + Float(zoom.tileHeight - size.height) - elevation)))
+                            position: SIMD2(origin.x, origin.y + Float(zoom.tileHeight - size.height) - elevation),
+                            tint: tileTint?(x, y) ?? .zero))
                     }
                 }
                 sx += 1

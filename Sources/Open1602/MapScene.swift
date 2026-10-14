@@ -89,7 +89,8 @@ final class MapScene {
 
     func draw(
         renderer: SpriteRenderer, encoder: MTLRenderCommandEncoder, drawableSize: SIMD2<Float>, backingScale: Float, timeMs: Int,
-        overlay: (IsometricLayout, SpriteLibrary) -> [SpriteDraw] = { _, _ in [] }
+        overlay: (IsometricLayout, SpriteLibrary) -> [SpriteDraw] = { _, _ in [] },
+        tileTint: ((Int, Int) -> SIMD4<UInt8>?)? = nil
     ) {
         guard let content, let layout = layout(), let library = try? library() else { return }
         let scale = backingScale
@@ -101,7 +102,7 @@ final class MapScene {
         let offset = library.offsets["STADTFLD"] ?? 0
         let draws = layout.sprites(
             for: content.grid, visible: visible, timeMs: timeMs, figures: figures, tileOffset: offset,
-            spriteSize: library.size(of:)) + overlay(layout, library)
+            tileTint: tileTint, spriteSize: library.size(of:)) + overlay(layout, library)
         renderer.draw(
             draws, from: library.sheet,
             transform: ViewTransform(drawableSize: drawableSize, scale: scale, offset: (drawableSize / 2 - center * scale).rounded(.down)),

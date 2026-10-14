@@ -19,3 +19,6 @@ DerivedData/
 
 # anno-tool-Export
 /export/
+
+# Referenzvideos zur Analyse (nicht weitergeben)
+/videos/

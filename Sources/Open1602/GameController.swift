@@ -127,7 +127,8 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
                 renderer: renderer, encoder: encoder, drawableSize: drawableSize, backingScale: backingScale, timeMs: timeMs,
                 overlay: { [buildUI, world, timeMs] layout, library in
                     buildUI.previewSprites(session: world, layout: layout, mapLibrary: library, timeMs: timeMs)
-                })
+                },
+                tileTint: buildUI.tileTint(session: world))
             buildUI.draw(
                 renderer: renderer, encoder: encoder, drawableSize: drawableSize, backingScale: backingScale, session: world,
                 viewCorners: mapScene.viewCorners(viewSize: drawableSize / backingScale))
@@ -410,10 +411,18 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         }
         mapScene.show(world)
         mapScene.pan(by: .zero)
-        // Vorschau eines weiteren Hauses.
-        buildUI.cycle(0)
-        _ = buildUI.clickPanel(at: SIMD2(BuildInterface.categoryRects[BuildCategory.housing.rawValue].x + 5, BuildInterface.categoryRects[BuildCategory.housing.rawValue].y + 5))
-        buildUI.setHover(nearest(house, around: center + SIMD2(2, 8), radius: 10))
+        // Vorschau: entweder ein weiteres Haus oder (mit `--demo-road`) ein geplanter Feldweg mit Kurve.
+        let category: BuildCategory = CommandLine.arguments.contains("--demo-road") ? .roads : .housing
+        _ = buildUI.clickPanel(at: SIMD2(BuildInterface.categoryRects[category.rawValue].x + 5, BuildInterface.categoryRects[category.rawValue].y + 5))
+        if category == .roads {
+            buildUI.cycle(1)  // Feldweg statt Steinstraße
+            if let a = nearest(road, around: center + SIMD2(-4, 6), radius: 10) {
+                buildUI.mouseDown(at: a)
+                buildUI.setHover((a.x + 5, a.y + 4))
+            }
+        } else {
+            buildUI.setHover(nearest(house, around: center + SIMD2(2, 8), radius: 10))
+        }
         focusMap(on: center + SIMD2(3, 4))
     }
 

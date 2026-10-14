@@ -278,14 +278,36 @@ public struct Game: Sendable {
     }
 
     /// Nachbarn mit Straßenanschluss: Bit 0 = Nord (y−1), 1 = Ost (x+1), 2 = Süd, 3 = West.
-    func roadMask(x: Int, y: Int) -> Int {
+    /// `planned` sind zusätzliche (geplante) Straßenfelder.
+    func roadMask(x: Int, y: Int, planned: Set<Int> = []) -> Int {
         var mask = 0
         for (bit, (dx, dy)) in [(0, -1), (1, 0), (0, 1), (-1, 0)].enumerated() {
-            if let kind = world.tile(x: x + dx, y: y + dy)?.building.kind, ["STRASSE", "BRUECKE", "PLATZ"].contains(kind) {
+            let nx = x + dx
+            let ny = y + dy
+            if planned.contains(ny * world.width + nx) {
+                mask |= 1 << bit
+            } else if let kind = world.tile(x: nx, y: ny)?.building.kind, ["STRASSE", "BRUECKE", "PLATZ"].contains(kind) {
                 mask |= 1 << bit
             }
         }
         return mask
+    }
+
+    /// Straßenformen für einen geplanten Weg (für die Bauvorschau), inklusive Anschluss an vorhandene Straßen.
+    public func roadPreview(_ type: BuildingType, path: [(x: Int, y: Int)]) -> [(x: Int, y: Int, building: BuildingType, rotation: Int)] {
+        let planned = Set(path.map { $0.y * world.width + $0.x })
+        let family = type.id / 10 * 10 + 1
+        return path.map { cell in
+            let (shape, rotation) = Self.roadShape(mask: roadMask(x: cell.x, y: cell.y, planned: planned))
+            return (cell.x, cell.y, buildings[family + shape] ?? type, rotation)
+        }
+    }
+
+    /// Mittelpunkt und Radius des Einflussbereichs, den ein Gebäude an dieser Stelle hätte (nur Kontor).
+    public func influencePreview(_ type: BuildingType, x: Int, y: Int, rotation: Int) -> (x: Float, y: Float, radius: Float)? {
+        guard type.production == "KONTOR" else { return nil }
+        let (w, h) = type.footprint(rotation: rotation)
+        return (Float(x) + Float(w) / 2, Float(y) + Float(h) / 2, Float(type.radius ?? 0) > 0 ? Float(type.radius!) : Self.kontorRadius)
     }
 
     /// Form (0 = gerade, 1 = Kurve, 2 = T, 3 = Kreuzung) und Drehung je Anschlussmuster,
