@@ -91,7 +91,24 @@ Grammatik (zeilenweise, `;` leitet Kommentare ein):
 
 Bildindex eines Feldes: `Gfx + Drehung·Rotate + Animation·AnimAdd + Teil`. `Teil` ist der Versatz `(dx, dy)` im gedrehten Grundriss, zurückgerechnet in die zeilenweise Anordnung (siehe `BuildingType.spriteIndex`). Blickrichtungen der Kamera addieren sich zur Drehung des Feldes.
 
-`Szenes/*.cod` nutzen zusätzliche Syntax, die noch nicht geparst wird (🟡).
+Werte in Anführungszeichen sind Texte. Flags wie `INFRA_WIRT | INFRA_ARZT` und Ausdrücke mit Programmkonstanten (`32-Pos[0]`) bleiben symbolisch.
+
+### Szenarien (`Szenes/*.cod`) ✅
+
+Die Sammlung `SZENE` enthält `Name`, `Size` (Welt 500×350), `Money`, `Natives: NORD, 2` und `Text` sowie zwei Unterobjekte:
+- `SZENE_SHIP` mit je Spieler `Playernr`, `Figurnr` (z. B. `HANDEL1`), `Ausricht` (Richtung 0–7) und Waren.
+- `SZENE_WELT` mit mehreren Weltvarianten, getrennt durch `Nummer`. Jede Variante hat:
+  - `Shippos: Spieler, x, y`
+  - `Insel: Größe, x, y [, NORD|SUED [, Nummer [, "Variante"]]]`
+
+Größe 0–4 entspricht `lit`, `mit`, `med`, `big`, `large`. Ohne Nummer wählt das Spiel eine zufällige Basisvorlage. Mit Nummer ist die Vorlage fest, zum Beispiel `Nord/lit16b.scp` oder `Nord/big01s16.scp`. 7 der 214 festen Verweise fehlen auf der CD.
+
+### Figuren (`figuren.cod`) 🟡
+
+Die Sammlung `FIGUR` mit symbolischen Nummern (`HANDEL1`, `HIRSCH` …) hat die Felder `Gfx` (Bild im Archiv `Blocknr`: 2 = `SHIP.BSH`, 5 = `TIERE.BSH`), `Rotate` und `Posoffs`. Unterobjekte `ANIM` enthalten mehrere Animationen mit `AnimOffs`, `AnimAnz`, `AnimSpeed` (ms) und `Kind` (`ENDLESS`, `RANDOM` …).
+- **Schiffe:** 8 Richtungen hintereinander. Beschädigte Schiffe liegen 8 Bilder dahinter.
+- **Hirsch:** 8 Richtungen à 8 Laufbilder, ab +112 je 6 Grasbilder.
+- **Richtungen:** 0 = rechts oben, dann im Uhrzeigersinn.
 
 ## GAD – UI-Layout ✅ (Klartext)
 
@@ -105,6 +122,10 @@ Chunks:
 - Besiedelte Varianten (`big01s16.scp`, `big25b.scp`) enthalten zusätzlich `KONTOR2`, `STADT4`, `MARKT2`, `PRODLIST2` usw. Ihr `INSELHAUS` enthält nur die Gebäude, das Gelände stammt aus der Basisvorlage (`big01.scp`, `big25.scp`).
 
 Darstellung: Kacheln 64×31 (GFX), 32×15 (MGFX), 16×7 (SGFX). Ein Feld (sx, sy) im gedrehten Raster liegt bei x = (sx − sy)·w/2, y = (sx + sy)·h/2. Bilder sind an der Kachelunterkante ausgerichtet und um `Posoffs` angehoben. Gezeichnet wird diagonal von hinten nach vorne.
+
+## HIRSCH2 (in Inseln) 🟡
+
+Einträge à 8 Byte: Inselnummer, x, y, dann Unbekanntes (`UInt16` 0x0561 – Zähler?).
 
 ## Savegames `.gam` / `.szs` ❓
 

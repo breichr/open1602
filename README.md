@@ -36,8 +36,10 @@ swift test
 .build/release/Open1602
 ```
 
-In der App wechselt **Tab** zwischen Startbildschirm, Inselansicht und Sprite-Viewer.
+In der App wechselt **Tab** zwischen Startbildschirm, Welt, Inselansicht und Sprite-Viewer.
 
+- **Welt:** ein Endlosspiel bzw. Szenario mit Inseln, Schiffen und Tieren. N/P wechselt das Szenario, G erzeugt eine neue Zufallswelt. Steuerung sonst wie in der Inselansicht.
+- **M / S:** Musik bzw. Umgebungsgeräusche an und aus.
 - **Inselansicht:** Pfeiltasten, Ziehen oder Trackpad scrollen. +/− wechselt die Zoomstufe, R/⇧R dreht den Blick, N/P wechselt die Insel.
 - **Sprite-Viewer:** ←/→ blättern durch die Bilder, ↑/↓ wechseln die Datei, +/− zoomen.
 

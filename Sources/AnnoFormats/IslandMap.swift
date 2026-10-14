@@ -9,10 +9,27 @@ public struct IslandTile: Sendable, Equatable {
     /// Versatz innerhalb des gedrehten Grundrisses.
     public let dx: Int
     public let dy: Int
+
+    public init(building: BuildingType, fieldIndex: Int, rotation: Int, animation: Int, random: Int, dx: Int, dy: Int) {
+        self.building = building
+        self.fieldIndex = fieldIndex
+        self.rotation = rotation
+        self.animation = animation
+        self.random = random
+        self.dx = dx
+        self.dy = dy
+    }
+}
+
+/// Ein Raster aus Feldern, das gezeichnet werden kann (Insel oder ganze Welt).
+public protocol TileGrid {
+    var width: Int { get }
+    var height: Int { get }
+    func tile(x: Int, y: Int) -> IslandTile?
 }
 
 /// Inselraster: jedes Feld kennt sein Gebäude (mehrfeldrige Gebäude belegen mehrere Felder).
-public struct IslandMap: Sendable {
+public struct IslandMap: Sendable, TileGrid {
     public let width: Int
     public let height: Int
     public private(set) var tiles: [IslandTile?]
@@ -64,7 +81,9 @@ public struct IslandMap: Sendable {
         }
     }
 
-    public subscript(x: Int, y: Int) -> IslandTile? {
+    public subscript(x: Int, y: Int) -> IslandTile? { tile(x: x, y: y) }
+
+    public func tile(x: Int, y: Int) -> IslandTile? {
         guard x >= 0, y >= 0, x < width, y < height else { return nil }
         return tiles[y * width + x]
     }

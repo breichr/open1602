@@ -111,3 +111,70 @@ struct IslandDataTests {
         #expect(IslandFile.baseTemplatePath(for: "Nord/large03.scp") == nil)
     }
 }
+
+@Suite("Szenarien", .enabled(if: TestData.available, "Spielordner nicht gefunden (OPEN1602_DATA setzen)"))
+struct ScenarioDataTests {
+    let data = TestData.gameData!
+
+    @Test func allScriptFilesParseCompletely() throws {
+        let files = data.files(withExtension: "cod") + data.files(withExtension: "gad")
+        #expect(files.count == 87)
+        for path in files {
+            let bytes = try data.read(path)
+            let doc = path.lowercased().hasSuffix(".gad") ? COD.parse(text: COD.decodeLatin1(bytes)) : COD.parse(encrypted: bytes)
+            #expect(doc.unparsedLines.isEmpty, "\(path): \(doc.unparsedLines.prefix(2))")
+        }
+    }
+
+    @Test(arguments: TestData.gameData?.files(withExtension: "cod").filter { $0.lowercased().hasPrefix("szenes/") } ?? [])
+    func scenarioHasWorlds(path: String) throws {
+        let scenario = try Scenario(document: COD.parse(encrypted: data.read(path)))
+        #expect(scenario.width == 500 && scenario.height == 350)
+        #expect(!scenario.worlds.isEmpty)
+        #expect(scenario.worlds.allSatisfy { !$0.islands.isEmpty })
+        // Feste Vorlagen müssen existieren, mindestens als Basis (einige besiedelte Varianten fehlen auf der CD).
+        for slot in scenario.worlds.flatMap(\.islands) {
+            guard let path = slot.templatePath else { continue }
+            let base = IslandFile.baseTemplatePath(for: path) ?? path
+            // `Sued/med18.scp` (Bignoware) gibt es auf der CD nicht; die Welt nimmt dann eine Zufallsinsel.
+            #expect(data.url(for: path) != nil || data.url(for: base) != nil || path == "Sued/med18.scp", "\(path)")
+        }
+    }
+
+    @Test func tutorialUsesFixedTemplates() throws {
+        let buildings = try BuildingTable(gameData: data)
+        let scenario = try Scenario(document: COD.parse(encrypted: data.read("Szenes/Tutor1.cod")))
+        #expect(scenario.worlds[0].islands[0].templatePath == "Nord/lit16b.scp")
+        let world = try WorldMap.generate(scenario: scenario, worldIndex: 0, seed: 1, gameData: data, buildings: buildings)
+        #expect(world.islands.map(\.path).first == "Nord/lit16b.scp")
+        #expect(world.islands.allSatisfy { $0.map.isComplete })
+    }
+
+    @Test func endlessWorldIsDeterministicAndComplete() throws {
+        let buildings = try BuildingTable(gameData: data)
+        let scenario = try Scenario(document: COD.parse(encrypted: data.read("Szenes/Endless0.cod")))
+        let a = try WorldMap.generate(scenario: scenario, worldIndex: 0, seed: 42, gameData: data, buildings: buildings)
+        let b = try WorldMap.generate(scenario: scenario, worldIndex: 0, seed: 42, gameData: data, buildings: buildings)
+        #expect(a.islands.map(\.path) == b.islands.map(\.path))
+        #expect(a.islands.count == scenario.worlds[0].islands.count)
+        #expect(a.islands.filter(\.hasNatives).count == 4)
+        for island in a.islands {
+            #expect(island.map.isComplete, "\(island.path)")
+            #expect(island.x + island.map.width <= a.width && island.y + island.map.height <= a.height)
+        }
+        // Offenes Meer zwischen den Inseln.
+        #expect(a.tile(x: 0, y: 0)?.building.id == WorldMap.openSeaID)
+    }
+
+    @Test func nativeIslandsUseTemplateTerrain() throws {
+        #expect(IslandFile.baseTemplatePath(for: "NORDNAT/BIG01.SCP") == "Nord/big01.scp")
+        let buildings = try BuildingTable(gameData: data)
+        // SUEDNAT/BIG15.SCP ist 30×30, die Basis Sued/big15.scp aber 70×60 (Eigenheit der Originaldaten).
+        for path in data.files(withExtension: "scp").filter({ $0.lowercased().contains("nat/") && $0 != "SUEDNAT/BIG15.SCP" }) {
+            let island = try IslandFile(bytes: data.read(path))
+            let base = try IslandFile(bytes: data.read(IslandFile.baseTemplatePath(for: path)!))
+            let map = IslandMap(island: island, base: base, buildings: buildings)
+            #expect(map.isComplete && map.unknownBuildingIDs.isEmpty, "\(path)")
+        }
+    }
+}

@@ -41,12 +41,14 @@ public enum CODValue: Sendable, Equatable, CustomStringConvertible {
     case float(Double)
     /// Unaufgelöster Bezeichner, z. B. `BODEN` oder `WAV_STANDARD`.
     case symbol(String)
+    /// Text in Anführungszeichen.
+    case string(String)
 
     public var intValue: Int? {
         switch self {
         case .int(let v): v
         case .float(let v): Int(v)
-        case .symbol: nil
+        case .symbol, .string: nil
         }
     }
 
@@ -54,8 +56,12 @@ public enum CODValue: Sendable, Equatable, CustomStringConvertible {
         switch self {
         case .int(let v): Double(v)
         case .float(let v): v
-        case .symbol: nil
+        case .symbol, .string: nil
         }
+    }
+
+    public var stringValue: String? {
+        if case .string(let s) = self { s } else { nil }
     }
 
     public var symbol: String? {
@@ -67,6 +73,7 @@ public enum CODValue: Sendable, Equatable, CustomStringConvertible {
         case .int(let v): "\(v)"
         case .float(let v): "\(v)"
         case .symbol(let s): s
+        case .string(let s): "\"\(s)\""
         }
     }
 }
@@ -140,8 +147,7 @@ struct CODParser {
     private var templates: [String: CODObject] = [:]
 
     mutating func parse(line raw: String, number: Int) {
-        let line = (raw.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false).first ?? "")
-            .trimmingCharacters(in: .whitespaces)
+        let line = Self.stripComment(raw).trimmingCharacters(in: .whitespaces)
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
         if trimmed.hasPrefix("EndObj") {
             endObject()
@@ -169,6 +175,16 @@ struct CODParser {
         } else {
             fail(number, raw)
         }
+    }
+
+    /// Entfernt alles ab `;`, außer innerhalb von Anführungszeichen.
+    static func stripComment(_ raw: String) -> String {
+        var quoted = false
+        for (i, ch) in zip(raw.indices, raw) {
+            if ch == "\"" { quoted.toggle() }
+            if ch == ";" && !quoted { return String(raw[..<i]) }
+        }
+        return raw
     }
 
     private mutating func handleField(_ key: String, valueText: String, relative: Bool, line: Int, raw: String) {
@@ -306,14 +322,35 @@ struct CODParser {
 
     // MARK: Ausdrücke
 
+    /// Trennt an Kommas außerhalb von Anführungszeichen.
     private func splitValues(_ text: String) -> [String] {
-        text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        var parts: [String] = []
+        var current = ""
+        var quoted = false
+        for ch in text {
+            if ch == "\"" { quoted.toggle() }
+            if ch == "," && !quoted {
+                parts.append(current)
+                current = ""
+            } else {
+                current.append(ch)
+            }
+        }
+        parts.append(current)
+        return parts.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
     /// Wertet `a + b - c` aus. Mit `relativeTo` wird ein führendes Vorzeichen auf die Basis addiert.
     private func evaluate(_ text: String, relativeTo base: Int? = nil) -> CODValue? {
         let text = text.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return nil }
+        if text.hasPrefix("\"") {
+            return .string(String(text.dropFirst().prefix { $0 != "\"" }))
+        }
+        // Flags (`INFRA_WIRT | INFRA_ARZT`) und Ausdrücke mit Programmkonstanten bleiben symbolisch.
+        if text.contains("|") || text.contains("[") {
+            return .symbol(text.split(separator: " ").joined())
+        }
         var tokens: [String] = []
         var token = ""
         for ch in text {
@@ -337,7 +374,8 @@ struct CODParser {
             }
             guard let operand = atom(t) else { return nil }
             if let r = result {
-                result = combine(r, operand, op)
+                // Rechnen mit unbekannten Konstanten (`GFXCHAT+0`) ergibt einen symbolischen Wert.
+                result = combine(r, operand, op) ?? .symbol(text.split(separator: " ").joined())
             } else {
                 result = operand
             }

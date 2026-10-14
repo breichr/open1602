@@ -100,3 +100,30 @@ struct CODTests {
         #expect(wide.footprint(rotation: 1) == (1, 2))
     }
 }
+
+@Suite("COD-Erweiterungen")
+struct CODExtensionTests {
+    @Test func stringsWithCommasAndSemicolons() {
+        let doc = COD.parse(text: """
+            Objekt: SZENE
+              Nummer: 0
+              Name: "Endlos; mit Komma, und mehr"
+              Text: 1, "Zeile, zwei"   ; Kommentar
+            EndObj;
+            """)
+        let scene = doc.items("SZENE")[0]
+        #expect(doc.unparsedLines.isEmpty)
+        #expect(scene["Name"] == [.string("Endlos; mit Komma, und mehr")])
+        #expect(scene["Text"] == [.int(1), .string("Zeile, zwei")])
+    }
+
+    @Test func flagsStaySymbolic() {
+        let doc = COD.parse(text: """
+            Objekt: X
+              Nummer: 0
+              Infraflags: INFRA_A | INFRA_B
+            EndObj;
+            """)
+        #expect(doc.items("X")[0]["Infraflags"] == [.symbol("INFRA_A|INFRA_B")])
+    }
+}

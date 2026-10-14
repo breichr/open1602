@@ -162,6 +162,7 @@ func dumpCOD(_ args: Arguments) throws {
         case .int(let v): v
         case .float(let v): v
         case .symbol(let s): s
+        case .string(let s): s
         }
     }
     func json(_ object: CODObject) -> [String: Any] {

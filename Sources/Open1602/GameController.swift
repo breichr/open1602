@@ -3,13 +3,15 @@ import AnnoRender
 import AppKit
 import MetalKit
 
-/// Steuert, was die App anzeigt: Startbildschirm, Inselansicht oder BSH-Viewer (Tab wechselt).
+/// Steuert, was die App anzeigt (Tab wechselt): Startbildschirm, Welt, Inselbrowser, Sprite-Viewer.
 @MainActor
 final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
     enum Mode {
         /// Startbildschirm, 1024×768 seitenverhältnistreu ins Fenster skaliert.
         case title
-        /// Inselansicht: Pfeiltasten/Ziehen scrollen, +/− Zoom, R drehen, N/P Insel.
+        /// Szenario-Welt: Inseln, Schiffe, Tiere.
+        case world
+        /// Einzelne Inselvorlagen.
         case island
         /// Sprite-Browser: ←/→ Bild, ↑/↓ Datei, +/− Zoom.
         case viewer
@@ -19,10 +21,13 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
     private let view: GameView
     private let commandQueue: MTLCommandQueue
     private let renderer: SpriteRenderer
+    private let audio: AudioController
 
     private var mode: Mode = .title
     private let titleSheet: SpriteSheet
-    private let islandScene: IslandScene
+    private let mapScene: MapScene
+    private let world: WorldSession
+    private let islands: IslandBrowser
 
     private let bshFiles: [String]
     private var fileIndex: Int
@@ -30,6 +35,11 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
     private var zoom: Float = 2
     private var viewerSheet: SpriteSheet?
     private var viewerArchive: BSHArchive?
+
+    /// Spielzeit in Millisekunden (für Animationen).
+    private(set) var timeMs = 0
+    private var lastFrame: CFTimeInterval?
+    private var lastTitleUpdate: CFTimeInterval = 0
 
     static let titleSize = SIMD2<Float>(1024, 768)
 
@@ -43,14 +53,16 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         view.device = device
         view.colorPixelFormat = .bgra8Unorm
         view.clearColor = MTLClearColor(red: 0.08, green: 0.08, blue: 0.1, alpha: 1)
-        // Neu zeichnen nur bei Änderungen; die Spielschleife kommt in späteren Meilensteinen.
-        view.isPaused = true
-        view.enableSetNeedsDisplay = true
+        view.preferredFramesPerSecond = 60
 
         renderer = try SpriteRenderer(device: device, pixelFormat: view.colorPixelFormat)
         try renderer.setPalette(Palette(colFile: gameData.read("ToolGfx/STADTFLD.COL")))
         titleSheet = try SpriteSheet(device: device, archive: BSHArchive(fileBytes: gameData.read("ToolGfx/START.BSH")))
-        islandScene = try IslandScene(gameData: gameData, device: device)
+        let buildings = try BuildingTable(gameData: gameData)
+        mapScene = MapScene(gameData: gameData, device: device)
+        world = try WorldSession(gameData: gameData, buildings: buildings)
+        islands = try IslandBrowser(gameData: gameData, buildings: buildings)
+        audio = AudioController(gameData: gameData)
 
         bshFiles = gameData.files(withExtension: "bsh")
         fileIndex = bshFiles.firstIndex { $0.lowercased() == "gfx/stadtfld.bsh" } ?? 0
@@ -60,13 +72,18 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         view.onPan = { [weak self] delta in self?.pan(by: delta) }
     }
 
-    // MARK: Darstellung
+    func startAudio() { audio.start() }
 
-    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        view.needsDisplay = true
-    }
+    // MARK: Spielschleife und Darstellung
+
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
     func draw(in view: MTKView) {
+        let now = CACurrentMediaTime()
+        let dt = min(now - (lastFrame ?? now), 0.1)
+        lastFrame = now
+        advance(dt: dt)
+
         guard
             let pass = view.currentRenderPassDescriptor,
             let drawable = view.currentDrawable,
@@ -78,6 +95,20 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         encoder.endEncoding()
         commands.present(drawable)
         commands.commit()
+
+        if mode == .world || mode == .island {
+            audio.updateAmbience(seaFraction: mapScene.seaFraction, landVisible: mapScene.seaFraction < 0.9, dt: dt)
+        }
+        if now - lastTitleUpdate > 1 {
+            lastTitleUpdate = now
+            updateTitle()
+        }
+    }
+
+    /// Spielzeit und Simulation vorrücken.
+    func advance(dt: Double) {
+        timeMs += Int(dt * 1000)
+        mapScene.content?.update(dt: dt)
     }
 
     private func encodeScene(encoder: MTLRenderCommandEncoder, drawableSize: SIMD2<Float>, backingScale: Float) {
@@ -85,8 +116,8 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         case .title:
             let transform = ViewTransform.fit(virtualSize: Self.titleSize, drawableSize: drawableSize)
             renderer.draw([SpriteDraw(index: 0, position: .zero)], from: titleSheet, transform: transform, encoder: encoder)
-        case .island:
-            islandScene.draw(renderer: renderer, encoder: encoder, drawableSize: drawableSize, backingScale: backingScale)
+        case .world, .island:
+            mapScene.draw(renderer: renderer, encoder: encoder, drawableSize: drawableSize, backingScale: backingScale, timeMs: timeMs)
         case .viewer:
             if let sheet = currentViewerSheet() {
                 let transform = ViewTransform(drawableSize: drawableSize, scale: backingScale * zoom)
@@ -125,17 +156,6 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         return pixels
     }
 
-    /// Für `--snapshot`: Modus und Viewer-Position setzen.
-    func showViewer(file: String?, image: Int) {
-        mode = .viewer
-        if let file, let index = bshFiles.firstIndex(where: { $0.lowercased() == file.lowercased() }) {
-            fileIndex = index
-            viewerSheet = nil
-            viewerArchive = nil
-        }
-        imageIndex = image
-    }
-
     private func currentViewerSheet() -> SpriteSheet? {
         if let viewerSheet { return viewerSheet }
         guard let device = view.device else { return nil }
@@ -150,11 +170,14 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
     }
 
     func updateTitle() {
+        let music = audio.currentTrack.map { "  ·  ♪ \($0)" } ?? ""
         switch mode {
         case .title:
-            view.window?.title = "Open1602  ·  Tab: Inseln / Sprite-Viewer"
+            view.window?.title = "Open1602  ·  Tab: Welt / Inseln / Sprite-Viewer"
+        case .world:
+            view.window?.title = "\(mapScene.title)  ·  N/P Szenario  G neue Welt  M Musik\(music)"
         case .island:
-            view.window?.title = "\(islandScene.title)  ·  ←↑→↓ Scrollen  +− Zoom  R Drehen  N/P Insel"
+            view.window?.title = "\(mapScene.title)  ·  N/P Insel  M Musik\(music)"
         case .viewer:
             let count = currentViewerSheet()?.count ?? 0
             var info = "\(bshFiles[fileIndex])  #\(imageIndex) / \(count)"
@@ -169,44 +192,61 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
 
     private func handleKey(_ event: NSEvent) -> Bool {
         if event.keyCode == 48 {  // Tab
-            mode = switch mode {
-            case .title: .island
-            case .island: .viewer
-            case .viewer: .title
+            switch mode {
+            case .title: showWorld()
+            case .world: showIslands()
+            case .island: mode = .viewer
+            case .viewer: mode = .title
             }
         } else {
             let handled = switch mode {
             case .title: false
-            case .island: handleIslandKey(event)
+            case .world, .island: handleMapKey(event)
             case .viewer: handleViewerKey(event)
             }
             guard handled else { return false }
         }
         updateTitle()
-        view.needsDisplay = true
         return true
     }
 
-    private func handleIslandKey(_ event: NSEvent) -> Bool {
+    private func showWorld() {
+        mode = .world
+        if mapScene.content !== world { mapScene.show(world) }
+    }
+
+    private func showIslands() {
+        mode = .island
+        if mapScene.content !== islands { mapScene.show(islands) }
+    }
+
+    private func handleMapKey(_ event: NSEvent) -> Bool {
         let step: Float = event.modifierFlags.contains(.shift) ? 400 : 100
         do {
             switch event.keyCode {
-            case 123: islandScene.pan(by: SIMD2(-step, 0))  // ←
-            case 124: islandScene.pan(by: SIMD2(step, 0))  // →
-            case 125: islandScene.pan(by: SIMD2(0, step))  // ↓
-            case 126: islandScene.pan(by: SIMD2(0, -step))  // ↑
+            case 123: mapScene.pan(by: SIMD2(-step, 0))  // ←
+            case 124: mapScene.pan(by: SIMD2(step, 0))  // →
+            case 125: mapScene.pan(by: SIMD2(0, step))  // ↓
+            case 126: mapScene.pan(by: SIMD2(0, -step))  // ↑
             default:
                 switch event.charactersIgnoringModifiers?.lowercased() {
-                case "+", "=": islandScene.setZoom(ZoomLevel(rawValue: islandScene.zoom.rawValue - 1) ?? .large)
-                case "-": islandScene.setZoom(ZoomLevel(rawValue: islandScene.zoom.rawValue + 1) ?? .small)
-                case "r": islandScene.rotate(event.modifierFlags.contains(.shift) ? -1 : 1)
-                case "n": try islandScene.nextIsland(1)
-                case "p": try islandScene.nextIsland(-1)
+                case "+", "=": mapScene.setZoom(ZoomLevel(rawValue: mapScene.zoom.rawValue - 1) ?? .large)
+                case "-": mapScene.setZoom(ZoomLevel(rawValue: mapScene.zoom.rawValue + 1) ?? .small)
+                case "r": mapScene.rotate(event.modifierFlags.contains(.shift) ? -1 : 1)
+                case "m": audio.toggleMusic()
+                case "s": audio.toggleEffects()
+                case "n", "p":
+                    let delta = event.charactersIgnoringModifiers?.lowercased() == "n" ? 1 : -1
+                    if mode == .world { try world.nextScenario(delta) } else { try islands.next(delta) }
+                    mapScene.show(mode == .world ? world : islands)
+                case "g" where mode == .world:
+                    try world.reroll()
+                    mapScene.show(world)
                 default: return false
                 }
             }
         } catch {
-            NSLog("Insel konnte nicht geladen werden: %@", String(describing: error))
+            NSLog("Laden fehlgeschlagen: %@", String(describing: error))
         }
         return true
     }
@@ -232,17 +272,8 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
 
     /// Ziehen mit der Maus oder Scrollen auf dem Trackpad (Delta in Punkten).
     private func pan(by delta: SIMD2<Float>) {
-        guard mode == .island else { return }
-        islandScene.pan(by: delta)
-        view.needsDisplay = true
-    }
-
-    /// Für `--snapshot`: Inselansicht einstellen.
-    func showIsland(file: String?, zoom: Int?, rotation: Int?) throws {
-        mode = .island
-        if let file { try islandScene.select(file: file) }
-        if let zoom, let level = ZoomLevel(rawValue: zoom) { islandScene.setZoom(level) }
-        if let rotation { islandScene.rotate(rotation) }
+        guard mode == .world || mode == .island else { return }
+        mapScene.pan(by: delta)
     }
 
     private func moveImage(by delta: Int) {
@@ -255,5 +286,40 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         imageIndex = 0
         viewerSheet = nil
         viewerArchive = nil
+    }
+
+    // MARK: Für `--snapshot`
+
+    func showViewer(file: String?, image: Int) {
+        mode = .viewer
+        if let file, let index = bshFiles.firstIndex(where: { $0.lowercased() == file.lowercased() }) {
+            fileIndex = index
+            viewerSheet = nil
+            viewerArchive = nil
+        }
+        imageIndex = image
+    }
+
+    func showIsland(file: String?, zoom: Int?, rotation: Int?) throws {
+        showIslands()
+        if let file {
+            try islands.select(file: file)
+            mapScene.show(islands)
+        }
+        configureMap(zoom: zoom, rotation: rotation)
+    }
+
+    func showWorld(scenario: String?, seed: UInt64?, zoom: Int?, rotation: Int?, panX: Float?, panY: Float?) throws {
+        showWorld()
+        if let scenario { try world.select(scenario: "Szenes/\(scenario)") }
+        if let seed { try world.reroll(seed: seed) }
+        mapScene.show(world)
+        configureMap(zoom: zoom, rotation: rotation)
+        if panX != nil || panY != nil { mapScene.pan(by: SIMD2(panX ?? 0, panY ?? 0)) }
+    }
+
+    private func configureMap(zoom: Int?, rotation: Int?) {
+        if let zoom, let level = ZoomLevel(rawValue: zoom) { mapScene.setZoom(level) }
+        if let rotation { mapScene.rotate(rotation) }
     }
 }

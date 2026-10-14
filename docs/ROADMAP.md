@@ -32,11 +32,18 @@ Jeder Meilenstein endet mit etwas, das man sieht oder ausprobieren kann.
 
 **Offen für später:** Inseln in `NORDNAT/` und `SUEDNAT/` (Eingeborene) und die Szenario-Syntax in `Szenes/*.cod`.
 
-## M3 – Lebendige Welt
-- [ ] Animationen (Wasser, Bäume, Gebäude), Meer und Küsten
-- [ ] Figuren aus `figuren.cod` (Träger, Tiere), Schiffe
-- [ ] Soundeffekte und Musik
-- [ ] Ein Szenario laden (`Szenes/*.cod`): Weltkarte mit mehreren Inseln
+## M3 – Lebendige Welt ✅
+- [x] Spielschleife (60 fps) mit Animationen nach `AnimTime` (Meer, Brandung, Flüsse, Gebäude)
+- [x] Szenarien (`Szenes/*.cod`): Weltkarte 500×350 mit zufällig gewählten Inselvorlagen (deterministischer Startwert), feste Vorlagen in Tutorials/Kampagnen, Eingeborenen-Inseln (`NORDNAT/`, `SUEDNAT/`)
+- [x] Gemeinsamer Atlas für Gelände, Schiffe und Tiere; Figuren werden in Tiefenreihenfolge zwischen die Kacheln einsortiert
+- [x] Startschiffe der Spieler (`SZENE_SHIP`/`Shippos`) mit Ausrichtung, die sich mit der Kamera dreht
+- [x] Hirsche aus `HIRSCH2` ziehen über die Inseln (laufen und grasen)
+- [x] Musik aus `MUSIC8/` (zufällige Reihenfolge, M), Umgebung: Wellen je nach Meeranteil, Vogelrufe über Land (S)
+- [x] Nur der sichtbare Ausschnitt wird gezeichnet (Culling)
+
+**Ergebnis:** Alle 87 Skriptdateien (Gebäude, Figuren, 36 Szenarien, 49 UI-Layouts) werden vollständig geparst. Endlosspiele und Szenarien erzeugen spielbereite Welten.
+
+**Offen für später:** Träger und Marktkarren (brauchen die Wirtschaft, M5), fahrende Schiffe (M6), Spielerfarben der Schiffe und Flaggen, Soundeffekte von Gebäuden.
 
 ## M4 – Bauen
 - [ ] UI-Grundgerüst nach `GADDATA` und `ZEI`-Fonts
@@ -88,5 +95,6 @@ brew install --cask open1602
 ## Offene Fragen
 - Original-Tickrate und Zeitmodell der Simulation
 - Restliche Felder in `INSEL3/4/5` (Klima, Vorlagennummer?) und Bedeutung der BSH-Bildtypen
-- Welche Basis `Nord/big13s19.scp` hat
+- Welche Basis `Nord/big13s19.scp` und `SUEDNAT/BIG15.SCP` haben (beide 30×30)
+- Bedeutung von `Posoffs` bei Figuren (Ankerpunkt der Bilder) und der Felder in `HIRSCH2` ab Byte 3
 - Ob diese CD die Königsedition ist (Datum 2001 → vermutlich ja). Dann müssten die Addon-Daten erkannt werden.

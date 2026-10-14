@@ -73,15 +73,35 @@ public struct IslandFile: Sendable {
             }
         }
         self.fields = fields
+
+        // `HIRSCH2`: 8-Byte-Einträge `UInt8` Inselnummer, `UInt8` x, `UInt8` y, Rest unbekannt (Zähler?).
+        var deer: [(x: Int, y: Int)] = []
+        for chunk in chunks where chunk.name == "HIRSCH2" {
+            for i in stride(from: 0, to: chunk.data.count - 7, by: 8) {
+                deer.append((Int(chunk.data[i + 1]), Int(chunk.data[i + 2])))
+            }
+        }
+        self.deer = deer
     }
+
+    /// Startpositionen der Hirsche (Inselkoordinaten).
+    public let deer: [(x: Int, y: Int)]
 }
 
 extension IslandFile {
-    /// Besiedelte Varianten (`big01s16.scp`, `big25b.scp`) enthalten nur Gebäude, das Gelände
-    /// stammt aus der Basisvorlage (`big01.scp`, `big25.scp`). Liefert den Pfad der Basis oder `nil`.
+    /// Besiedelte Varianten (`big01s16.scp`, `big25b.scp`) und Eingeborenen-Inseln (`NORDNAT/BIG01.SCP`)
+    /// enthalten nur Gebäude, das Gelände stammt aus der Basisvorlage (`big01.scp`, `big25.scp`,
+    /// `Nord/big01.scp`). Liefert den Pfad der Basis oder `nil`.
     public static func baseTemplatePath(for path: String) -> String? {
         let parts = path.split(separator: "/", omittingEmptySubsequences: false)
         guard let file = parts.last, file.lowercased().hasSuffix(".scp") else { return nil }
+        if parts.count >= 2 {
+            let dir = parts[parts.count - 2].lowercased()
+            if dir == "nordnat" || dir == "suednat" {
+                let climate: Climate = dir == "nordnat" ? .north : .south
+                return (parts.dropLast(2).map(String.init) + [climate.templateDirectory, file.lowercased()]).joined(separator: "/")
+            }
+        }
         let stem = Array(file.dropLast(4))
         // Präfix aus Buchstaben, zwei Ziffern, dann `sNN` oder genau ein Buchstabe.
         guard let firstDigit = stem.firstIndex(where: \.isNumber), firstDigit > 0,

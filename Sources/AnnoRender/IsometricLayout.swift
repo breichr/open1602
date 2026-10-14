@@ -22,11 +22,31 @@ public enum ZoomLevel: Int, CaseIterable, Sendable {
     /// Vertikaler Abstand zweier Kachelreihen (halbe Kachelhöhe).
     public var rowStep: Int { 16 >> rawValue }
 
-    /// Gebäudehöhen (`Posoffs`) gelten für GFX und werden pro Stufe halbiert.
-    public func scaledElevation(_ elevation: Int) -> Int { elevation >> rawValue }
+    /// Pixelmaße der Stufe GFX auf diese Stufe umrechnen (Höhen, Ankerpunkte).
+    public func scaled(_ value: Int) -> Int { value >> rawValue }
+    public func scaledElevation(_ elevation: Int) -> Int { scaled(elevation) }
 }
 
-/// Isometrische Anordnung einer Insel für eine Blickrichtung und Zoomstufe.
+/// Eine Figur (Schiff, Tier …), die zwischen den Kacheln in Tiefenreihenfolge gezeichnet wird.
+public struct FigureSprite: Sendable {
+    /// Position auf der Karte in Feldern (Feldmitte = x + 0.5).
+    public var position: SIMD2<Float>
+    /// Bildindex im Atlas.
+    public var index: Int
+    /// Punkt im Bild (in Pixeln dieser Zoomstufe), der auf dem Boden steht.
+    public var anchor: SIMD2<Float>
+    /// Zusätzliche Höhe in Pixeln dieser Zoomstufe (z. B. Inselniveau).
+    public var elevation: Float
+
+    public init(position: SIMD2<Float>, index: Int, anchor: SIMD2<Float>, elevation: Float = 0) {
+        self.position = position
+        self.index = index
+        self.anchor = anchor
+        self.elevation = elevation
+    }
+}
+
+/// Isometrische Anordnung eines Feldrasters für eine Blickrichtung und Zoomstufe.
 public struct IsometricLayout: Sendable {
     public let zoom: ZoomLevel
     /// Blickrichtung in Vierteldrehungen (0…3).
@@ -66,6 +86,42 @@ public struct IsometricLayout: Sendable {
         }
     }
 
+    /// Kontinuierliche Kartenposition → kontinuierliche Position im Bildschirmraster.
+    public func screenPosition(ofMap p: SIMD2<Float>) -> SIMD2<Float> {
+        let w = Float(mapWidth)
+        let h = Float(mapHeight)
+        switch rotation {
+        case 0: return p
+        case 1: return SIMD2(h - p.y, p.x)
+        case 2: return SIMD2(w - p.x, h - p.y)
+        default: return SIMD2(p.y, w - p.x)
+        }
+    }
+
+    /// Umkehrung von `screenPosition(ofMap:)`.
+    public func mapPosition(ofScreen s: SIMD2<Float>) -> SIMD2<Float> {
+        let w = Float(mapWidth)
+        let h = Float(mapHeight)
+        switch rotation {
+        case 0: return s
+        case 1: return SIMD2(s.y, h - s.x)
+        case 2: return SIMD2(w - s.x, h - s.y)
+        default: return SIMD2(w - s.y, s.x)
+        }
+    }
+
+    /// Bildschirmraster-Position → virtuelle Pixel (Bodenpunkt).
+    public func pixel(ofScreen s: SIMD2<Float>) -> SIMD2<Float> {
+        SIMD2((s.x - s.y) * Float(zoom.tileWidth) / 2 + Float(zoom.tileWidth) / 2, (s.x + s.y) * Float(zoom.rowStep))
+    }
+
+    /// Virtuelle Pixel (Bodenpunkt) → Bildschirmraster-Position.
+    public func screen(ofPixel p: SIMD2<Float>) -> SIMD2<Float> {
+        let a = (p.x - Float(zoom.tileWidth) / 2) / (Float(zoom.tileWidth) / 2)  // sx − sy
+        let b = p.y / Float(zoom.rowStep)  // sx + sy
+        return SIMD2((a + b) / 2, (b - a) / 2)
+    }
+
     /// Linke obere Ecke der Bodenkachel eines Bildschirmfelds (virtuelle Pixel).
     public func tileOrigin(screenX sx: Int, screenY sy: Int) -> SIMD2<Float> {
         SIMD2(Float((sx - sy) * zoom.tileWidth / 2), Float((sx + sy) * zoom.rowStep))
@@ -80,31 +136,73 @@ public struct IsometricLayout: Sendable {
         return (SIMD2(minX, 0), SIMD2(maxX, maxY))
     }
 
-    /// Bild und Position für jedes belegte Feld, in Zeichenreihenfolge (hinten nach vorne).
+    /// Bilder in Zeichenreihenfolge (hinten nach vorne) für den sichtbaren Ausschnitt.
     ///
-    /// - Parameter spriteSize: Größe eines Bildes der aktuellen Zoomstufe.
-    public func sprites(for map: IslandMap, spriteSize: (Int) -> (width: Int, height: Int)?) -> [SpriteDraw] {
+    /// - Parameters:
+    ///   - visible: Sichtbares Rechteck in virtuellen Pixeln (`nil` = alles).
+    ///   - timeMs: Spielzeit für Animationen.
+    ///   - figures: Figuren, die zwischen den Kacheln einsortiert werden.
+    ///   - tileOffset: Erster Bildindex von `STADTFLD` im Atlas.
+    ///   - spriteSize: Größe eines Bildes im Atlas.
+    public func sprites(
+        for grid: some TileGrid, visible: (min: SIMD2<Float>, max: SIMD2<Float>)? = nil, timeMs: Int = 0,
+        figures: [FigureSprite] = [], tileOffset: Int = 0,
+        spriteSize: (Int) -> (width: Int, height: Int)?
+    ) -> [SpriteDraw] {
         let (gw, gh) = screenGrid
+        let half = Float(zoom.tileWidth) / 2
+        let step = Float(zoom.rowStep)
+        // Reihen b = sx + sy und Spalten a = sx − sy, mit Rand für hohe Bilder.
+        var aRange = -(gh - 1)...(gw - 1)
+        var bRange = 0...(gw + gh - 2)
+        if let visible {
+            let margin = Float(zoom.scaled(320))
+            let aMin = Int(((visible.min.x - Float(zoom.tileWidth)) / half).rounded(.down)) - 1
+            let aMax = Int((visible.max.x / half).rounded(.up)) + 1
+            let bMin = Int(((visible.min.y - Float(zoom.tileHeight)) / step).rounded(.down)) - 1
+            let bMax = Int(((visible.max.y + margin) / step).rounded(.up)) + 1
+            aRange = max(aRange.lowerBound, aMin)...max(min(aRange.upperBound, aMax), max(aRange.lowerBound, aMin))
+            bRange = max(bRange.lowerBound, bMin)...max(min(bRange.upperBound, bMax), max(bRange.lowerBound, bMin))
+        }
+
+        // Figuren nach Bildschirmfeld sortieren.
+        var figuresByCell: [Int: [SpriteDraw]] = [:]
+        for figure in figures {
+            let s = screenPosition(ofMap: figure.position)
+            let cellX = Int(s.x.rounded(.down))
+            let cellY = Int(s.y.rounded(.down))
+            let ground = pixel(ofScreen: s)
+            let position = ground - figure.anchor - SIMD2(0, figure.elevation)
+            figuresByCell[cellY * gw + cellX, default: []].append(SpriteDraw(index: figure.index, position: position))
+        }
+
         var draws: [SpriteDraw] = []
-        draws.reserveCapacity(map.width * map.height)
-        for s in 0..<(gw + gh - 1) {
-            for sx in max(0, s - gh + 1)...min(s, gw - 1) {
-                let sy = s - sx
+        for b in bRange {
+            // sx = (a + b) / 2 muss ganzzahlig sein → a hat dieselbe Parität wie b.
+            var sx = max(0, b - (gh - 1), Int((Float(aRange.lowerBound + b) / 2).rounded(.up)))
+            let sxMax = min(gw - 1, b, Int((Float(aRange.upperBound + b) / 2).rounded(.down)))
+            while sx <= sxMax {
+                let sy = b - sx
                 let (x, y) = mapCell(screenX: sx, screenY: sy)
-                guard let tile = map[x, y] else { continue }
-                let index = spriteIndex(tile)
-                guard let size = spriteSize(index) else { continue }
-                let origin = tileOrigin(screenX: sx, screenY: sy)
-                let elevation = Float(zoom.scaledElevation(tile.building.elevation))
-                let position = SIMD2(origin.x, origin.y + Float(zoom.tileHeight - size.height) - elevation)
-                draws.append(SpriteDraw(index: index, position: position))
+                if let tile = grid.tile(x: x, y: y) {
+                    let index = tileOffset + spriteIndex(tile, timeMs: timeMs)
+                    if let size = spriteSize(index) {
+                        let origin = tileOrigin(screenX: sx, screenY: sy)
+                        let elevation = Float(zoom.scaledElevation(tile.building.elevation))
+                        draws.append(SpriteDraw(
+                            index: index,
+                            position: SIMD2(origin.x, origin.y + Float(zoom.tileHeight - size.height) - elevation)))
+                    }
+                }
+                if let cellFigures = figuresByCell[sy * gw + sx] { draws.append(contentsOf: cellFigures) }
+                sx += 1
             }
         }
         return draws
     }
 
-    /// Bildindex eines Feldes unter Berücksichtigung der Blickrichtung.
-    public func spriteIndex(_ tile: IslandTile) -> Int {
+    /// Bildindex eines Feldes unter Berücksichtigung der Blickrichtung und Animation.
+    public func spriteIndex(_ tile: IslandTile, timeMs: Int = 0) -> Int {
         let (fw, fh) = tile.building.footprint(rotation: tile.rotation)
         // Versatz im Grundriss so drehen wie das Raster.
         let (dx, dy): (Int, Int) =
@@ -114,7 +212,8 @@ public struct IsometricLayout: Sendable {
             case 2: (fw - 1 - tile.dx, fh - 1 - tile.dy)
             default: (tile.dy, fw - 1 - tile.dx)
             }
-        return tile.building.spriteIndex(
-            rotation: tile.rotation + rotation, animation: tile.animation, dx: dx, dy: dy)
+        var animation = tile.animation
+        if let time = tile.building.animationTime { animation += timeMs / time }
+        return tile.building.spriteIndex(rotation: tile.rotation + rotation, animation: animation, dx: dx, dy: dy)
     }
 }

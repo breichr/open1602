@@ -33,10 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.controller = controller
             controller.updateTitle()
             if let path = argument("--snapshot") {
+                view.isPaused = true
                 writeSnapshot(controller: controller, to: path)
                 NSApp.terminate(nil)
                 return
             }
+            controller.startAudio()
             NSApp.activate()
         } catch {
             fail("Start fehlgeschlagen", error)
@@ -74,18 +76,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return args.firstIndex(of: name).flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
     }
 
-    /// `--snapshot DATEI [--viewer BSH --image N | --island SCP --zoom 0…2 --rotation 0…3]`: rendert ein Bild (2048×1536, Retina 2×) als PNG und beendet die App.
+    /// `--snapshot DATEI [--viewer BSH --image N | --island SCP | --world Endless0.cod --seed N]
+    /// [--zoom 0…2 --rotation 0…3 --pan-x P --pan-y P --time Sekunden]`: rendert ein Bild (2048×1536, Retina 2×) als PNG und beendet die App.
     private func writeSnapshot(controller: GameController, to path: String) {
         if argument("--viewer") != nil || argument("--image") != nil {
             controller.showViewer(file: argument("--viewer"), image: argument("--image").flatMap(Int.init) ?? 0)
         }
-        if argument("--island") != nil {
-            do {
-                try controller.showIsland(
-                    file: argument("--island"), zoom: argument("--zoom").flatMap(Int.init),
-                    rotation: argument("--rotation").flatMap(Int.init))
-            } catch {
-                return fail("Insel konnte nicht geladen werden", error)
+        do {
+            let zoom = argument("--zoom").flatMap(Int.init)
+            let rotation = argument("--rotation").flatMap(Int.init)
+            if argument("--island") != nil {
+                try controller.showIsland(file: argument("--island"), zoom: zoom, rotation: rotation)
+            }
+            if argument("--world") != nil || argument("--seed") != nil {
+                try controller.showWorld(
+                    scenario: argument("--world"), seed: argument("--seed").flatMap(UInt64.init), zoom: zoom,
+                    rotation: rotation, panX: argument("--pan-x").flatMap(Float.init), panY: argument("--pan-y").flatMap(Float.init))
+            }
+        } catch {
+            return fail("Karte konnte nicht geladen werden", error)
+        }
+        // Simulation vorspulen (Animationen, Tiere), z. B. `--time 2.5`.
+        if let seconds = argument("--time").flatMap(Double.init) {
+            var remaining = seconds
+            while remaining > 0 {
+                controller.advance(dt: min(remaining, 0.05))
+                remaining -= 0.05
             }
         }
         let (width, height) = (2048, 1536)

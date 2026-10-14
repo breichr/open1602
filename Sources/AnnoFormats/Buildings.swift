@@ -16,6 +16,8 @@ public struct BuildingType: Sendable, Equatable {
     public let animationCount: Int
     /// Bildabstand zwischen Animationsschritten.
     public let animationStride: Int
+    /// Millisekunden pro Animationsschritt (`nil` = steht still, `TIMENEVER`).
+    public var animationTime: Int? = nil
     /// Beim Bauen wird zufällig eine von `randomCount` Varianten gewählt (ID-Abstand `randomStride`),
     /// z. B. 11 Baumarten oder 7 Wohnhäuser. Für die Bildauswahl spielt das keine Rolle.
     public let randomCount: Int
@@ -89,6 +91,7 @@ public struct BuildingTable: Sendable {
                 randomCount: item.int("RandAnz") ?? 1,
                 randomStride: item.int("RandAdd") ?? 0,
                 elevation: item.int("Posoffs") ?? 0))
+            list[list.count - 1].animationTime = item.int("AnimTime").flatMap { $0 > 0 ? $0 : nil }
         }
         self.init(types: list)
     }
