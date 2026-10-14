@@ -1,0 +1,18 @@
+# Originaldaten – urheberrechtlich geschützt, niemals committen
+/ANNO1602/
+*.BSH
+*.bsh
+*.COL
+*.ZEI
+*.SCP
+*.scp
+*.SMK
+*.smk
+
+# Build
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj/xcuserdata/
+
+.DS_Store
