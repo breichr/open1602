@@ -33,7 +33,12 @@ swift build -c release
 swift test
 .build/release/anno-tool info
 .build/release/anno-tool export-bsh --all --out export
+.build/release/Open1602
 ```
+
+In der App wechselt **Tab** zwischen dem Startbildschirm und dem Sprite-Viewer. Im Viewer blättern ←/→ durch die Bilder, ↑/↓ wechseln die Datei und +/− zoomen.
+
+Hinweis für Builds ohne Xcode: Swift 6.4 aus den Command Line Tools findet das Makro-Plugin von swift-testing sporadisch nicht. `Package.swift` gibt den Plugin-Pfad deshalb explizit mit.
 
 Den Spielordner findet die Engine über `--data DIR`, die Umgebungsvariable `OPEN1602_DATA` oder unter `./ANNO1602/ANNO1602`.
 

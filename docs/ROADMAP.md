@@ -10,10 +10,16 @@ Jeder Meilenstein endet mit etwas, das man sieht oder ausprobieren kann.
 
 **Ergebnis:** Alle 37 BSH-Dateien mit zusammen 48 380 Bildern werden fehlerfrei exportiert, 8 davon sind leer (0×0). Die anderen Targets aus [ARCHITEKTUR.md](ARCHITEKTUR.md) kommen mit ihren Meilensteinen dazu.
 
-## M1 – Erstes Bild
-- [ ] macOS-App mit `MTKView` und Retina-Support
-- [ ] Palettenshader, Sprite-Atlas aus BSH
-- [ ] Startbildschirm (`START.BSH`) anzeigen
+## M1 – Erstes Bild ✅
+- [x] macOS-App `Open1602` (AppKit, `MTKView`, Retina, Vollbild mit ⌃⌘F)
+- [x] Palettenshader: Sprites liegen als `rg8Uint` (Index + Deckkraft) auf der GPU, die Palette wird im Fragment-Shader angewendet
+- [x] Sprite-Atlas aus BSH (Shelf-Packing, 4096er-Seiten): `STADTFLD.BSH` braucht wenige Seiten
+- [x] Startbildschirm (`START.BSH`) anzeigen, seitenverhältnistreu skaliert
+- [x] Sprite-Viewer (Tab): ←/→ Bild, ⇧ für 10er-Schritte, Bild↑/↓ für 100er-Schritte, ↑/↓ Datei, +/− Zoom
+- [x] Spielordner: `--data`, `OPEN1602_DATA`, `./ANNO1602/ANNO1602`, gespeicherter Pfad, sonst Auswahldialog
+- [x] `--snapshot DATEI [--viewer BSH --image N]` rendert offscreen ein PNG (für Tests und Bug-Reports)
+
+**Ergebnis:** Der GPU-Renderer gibt den Startbildschirm pixelgenau wie die CPU-Dekodierung aus. Ein Offscreen-Test vergleicht dafür jedes Pixel.
 
 ## M2 – Eine Insel
 - [ ] COD-Entschlüsselung und -Parser, `haeuser.cod` → Gebäudetabelle (ID → Gfx, Größe, Rotationen)
