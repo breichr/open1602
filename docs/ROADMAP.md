@@ -2,13 +2,13 @@
 
 Jeder Meilenstein endet mit etwas, das man sieht oder ausprobieren kann.
 
-## M0 – Fundament
-- [ ] `Package.swift` mit den Targets aus [ARCHITEKTUR.md](ARCHITEKTUR.md), Git-Repo, GPLv3
-- [ ] `GameData`: Spielordner finden und Pfade case-insensitive auflösen
-- [ ] `Chunk`, `Palette`, `BSH` inkl. Tests gegen die Originaldateien
-- [ ] `anno-tool export-bsh <datei>` → PNGs
+## M0 – Fundament ✅
+- [x] `Package.swift` (Targets `AnnoFormats`, `anno-tool`, `AnnoFormatsTests`), Git-Repo, GPLv3
+- [x] `GameData`: Spielordner finden (`--data`, `OPEN1602_DATA`, `./ANNO1602/ANNO1602`) und Pfade case-insensitive auflösen
+- [x] `Chunk`, `Palette`, `BSH` inkl. Tests gegen die Originaldateien
+- [x] `anno-tool export-bsh <datei> | --all` → PNGs, `anno-tool info`
 
-**Fertig, wenn** `anno-tool` alle 37 BSH-Dateien fehlerfrei als PNG exportiert.
+**Ergebnis:** Alle 37 BSH-Dateien mit zusammen 48 380 Bildern werden fehlerfrei exportiert, 8 davon sind leer (0×0). Die anderen Targets aus [ARCHITEKTUR.md](ARCHITEKTUR.md) kommen mit ihren Meilensteinen dazu.
 
 ## M1 – Erstes Bild
 - [ ] macOS-App mit `MTKView` und Retina-Support

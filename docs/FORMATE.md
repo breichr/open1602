@@ -52,6 +52,8 @@ RLE-Strom (zeilenweise, oben links beginnend):
 
 Geprüft wurde das mit `GFX/STADTFLD.BSH` (5748 Bilder, Bodenkacheln 64×31, Gebäude wie die Windmühle 64×114) und `ToolGfx/START.BSH` (Startbildschirm 1024×768). Beide werden fehlerfrei dekodiert.
 
+Ein Export aller 37 Dateien ergab 48 380 Bilder. 8 davon sind leer (0×0, in `Start6.bsh` und `TOOLS6.BSH`).
+
 🟡 Was `type` bedeutet, ist noch offen. Bisher war der Wert immer 1.
 
 ## COL – Palette ✅

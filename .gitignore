@@ -16,3 +16,6 @@ DerivedData/
 *.xcodeproj/xcuserdata/
 
 .DS_Store
+
+# anno-tool-Export
+/export/

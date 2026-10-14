@@ -23,3 +23,20 @@ Das Projekt enthält **keine** Originaldaten. Grafiken, Sounds, Inseln und Szena
 ## Originaldaten
 
 Die Engine erwartet den Spielordner, also das Verzeichnis mit `1602.EXE`, `haeuser.cod`, `GFX/` und weiteren Inhalten. Lokal liegt er für die Entwicklung unter `ANNO1602/ANNO1602/`. Er ist per `.gitignore` ausgeschlossen und **darf nie committet werden**.
+
+## Bauen und ausprobieren
+
+Voraussetzung: Swift 6 (Xcode oder Command Line Tools) auf macOS 14+.
+
+```bash
+swift build -c release
+swift test
+.build/release/anno-tool info
+.build/release/anno-tool export-bsh --all --out export
+```
+
+Den Spielordner findet die Engine über `--data DIR`, die Umgebungsvariable `OPEN1602_DATA` oder unter `./ANNO1602/ANNO1602`.
+
+## Lizenz
+
+GPLv3, siehe [LICENSE](LICENSE).
