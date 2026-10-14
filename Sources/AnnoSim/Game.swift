@@ -55,8 +55,19 @@ public struct Game: Sendable {
     /// Typischer Boden je Insel (für Abriss).
     private var groundCache: [Int: BuildingType] = [:]
 
-    /// Einflussradius eines Kontors. `RADIUS_HQ` ist eine Programmkonstante; der Wert ist geschätzt.
-    public static let kontorRadius: Float = 13
+    /// Einflussradien von Kontor und Marktplatz. `RADIUS_HQ`/`RADIUS_MARKT` sind Programmkonstanten;
+    /// die Werte sind aus einem Gameplay-Video vermessen (gepunktete Radiuslinie beim Platzieren).
+    public static let kontorRadius: Float = 16
+    public static let marketRadius: Float = 17
+
+    /// Radius, um den ein Gebäude den Einflussbereich erweitert (`nil` = keiner).
+    public static func influenceRadius(of type: BuildingType) -> Float? {
+        switch type.production {
+        case "KONTOR": Float(type.radius ?? 0) > 0 ? Float(type.radius!) : kontorRadius
+        case "MARKT": Float(type.radius ?? 0) > 0 ? Float(type.radius!) : marketRadius
+        default: nil
+        }
+    }
 
     public init(world: WorldMap, buildings: BuildingTable, players: [Player], seed: UInt64 = 1602) {
         self.world = world
@@ -136,6 +147,8 @@ public struct Game: Sendable {
         case "BRUECKE":
             if !tiles.allSatisfy({ $0?.building.kind == "FLUSS" }) { problems.append(.blocked) }
         default:
+            // Auch das Kontor steht ganz auf Land (Gebäude liegen 20 Pixel über dem Meer;
+            // auf Strandfeldern entstünde darunter ein Loch). Die Küstenregel prüft die Nachbarfelder.
             if !tiles.allSatisfy(Self.isBuildableGround) { problems.append(.blocked) }
         }
 
@@ -202,9 +215,9 @@ public struct Game: Sendable {
         let origin = world.islands[island]
         world.modifyIsland(island) { $0.place(placed, x: x - origin.x, y: y - origin.y, rotation: rotation) }
 
-        if type.production == "KONTOR", let index = settlements.firstIndex(where: { $0.player == player && $0.island == island }) {
+        if let radius = Self.influenceRadius(of: type), let index = settlements.firstIndex(where: { $0.player == player && $0.island == island }) {
             let (w, h) = type.footprint(rotation: rotation)
-            settlements[index].centers.append((Float(x) + Float(w) / 2, Float(y) + Float(h) / 2, Float(type.radius ?? 0) > 0 ? Float(type.radius!) : Self.kontorRadius))
+            settlements[index].centers.append((Float(x) + Float(w) / 2, Float(y) + Float(h) / 2, radius))
         }
         if type.kind == "STRASSE" { updateRoads(around: x, y: y) }
         return []
@@ -234,7 +247,7 @@ public struct Game: Sendable {
                 for dx in 0..<fp.width { map.place(ground, x: fp.x + dx, y: fp.y + dy, rotation: 0) }
             }
         }
-        if tile.building.production == "KONTOR", let index = settlements.firstIndex(where: { $0.player == player && $0.island == island }) {
+        if Self.influenceRadius(of: tile.building) != nil, let index = settlements.firstIndex(where: { $0.player == player && $0.island == island }) {
             let cx = Float(origin.x + fp.x) + Float(fp.width) / 2
             let cy = Float(origin.y + fp.y) + Float(fp.height) / 2
             settlements[index].centers.removeAll { abs($0.x - cx) < 0.01 && abs($0.y - cy) < 0.01 }
@@ -303,11 +316,11 @@ public struct Game: Sendable {
         }
     }
 
-    /// Mittelpunkt und Radius des Einflussbereichs, den ein Gebäude an dieser Stelle hätte (nur Kontor).
+    /// Mittelpunkt und Radius des Einflussbereichs, den ein Gebäude an dieser Stelle hätte (Kontor, Marktplatz).
     public func influencePreview(_ type: BuildingType, x: Int, y: Int, rotation: Int) -> (x: Float, y: Float, radius: Float)? {
-        guard type.production == "KONTOR" else { return nil }
+        guard let radius = Self.influenceRadius(of: type) else { return nil }
         let (w, h) = type.footprint(rotation: rotation)
-        return (Float(x) + Float(w) / 2, Float(y) + Float(h) / 2, Float(type.radius ?? 0) > 0 ? Float(type.radius!) : Self.kontorRadius)
+        return (Float(x) + Float(w) / 2, Float(y) + Float(h) / 2, radius)
     }
 
     /// Form (0 = gerade, 1 = Kurve, 2 = T, 3 = Kreuzung) und Drehung je Anschlussmuster,

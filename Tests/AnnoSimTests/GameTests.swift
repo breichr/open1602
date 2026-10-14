@@ -150,4 +150,21 @@ struct BuildTests {
         #expect(preview[2].rotation == 2)  // Kurve mit Anschlüssen West und Süd
         #expect(preview[0].rotation == 0 && preview[3].rotation == 1)
     }
+
+    @Test func marketExtendsInfluence() throws {
+        var game = try makeGame()
+        let kontor = try #require(game.buildings[2101])
+        let market = try #require(game.buildings[809])
+        #expect(market.upkeep == 10)
+        #expect(Game.influenceRadius(of: market) == Game.marketRadius)
+        let spot = try #require(findSpot(game, kontor))
+        game.build(kontor, x: spot.x, y: spot.y, rotation: 0, player: 0)
+        game.addToStock(player: 0, island: 0, Stock([.wood: 50, .tools: 20]))
+        let marketSpot = try #require(findSpot(game, market))
+        let before = (0..<100).flatMap { y in (0..<100).map { (x: $0, y: y) } }.filter { game.isInfluenced(x: $0.x, y: $0.y, by: 0) }.count
+        let result = game.build(market, x: marketSpot.x, y: marketSpot.y, rotation: 0, player: 0)
+        #expect(result.isEmpty)
+        let after = (0..<100).flatMap { y in (0..<100).map { (x: $0, y: y) } }.filter { game.isInfluenced(x: $0.x, y: $0.y, by: 0) }.count
+        #expect(after > before)
+    }
 }

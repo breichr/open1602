@@ -223,7 +223,7 @@ final class BuildInterface {
                     let tile = IslandTile(building: type, fieldIndex: -1, rotation: rotation, animation: 0, random: 0, dx: dx, dy: dy)
                     if let d = layout.tileSprite(
                         tile, mapX: cell.x + dx, mapY: cell.y + dy, timeMs: timeMs, tileOffset: offset,
-                        tint: ok ? SpriteDraw.validTint : SpriteDraw.invalidTint, spriteSize: mapLibrary.size(of:))
+                        tint: ok ? Self.silhouetteTint : SpriteDraw.invalidTint, spriteSize: mapLibrary.size(of:))
                     {
                         draws.append(d)
                     }
@@ -235,27 +235,62 @@ final class BuildInterface {
 
     // MARK: Einflussbereich
 
-    /// Im Baumodus: eigener Einflussbereich hell, Radius eines geplanten Kontors bläulich.
+    /// Im Baumodus wird wie im Original alles außerhalb des eigenen Einflussbereichs abgedunkelt.
     func tileTint(session: WorldSession) -> ((Int, Int) -> SIMD4<UInt8>?)? {
-        guard tool == .build, let type = selected else { return nil }
+        guard tool == .build, selected != nil else { return nil }
         let game = session.game
-        let planned = hover.flatMap { game.influencePreview(type, x: $0.x, y: $0.y, rotation: rotation) }
         return { x, y in
-            // Nur Land markieren, nicht das Wasser rund um die Insel.
-            guard let tile = game.world.tile(x: x, y: y), tile.building.elevation > 0 else { return nil }
-            if let p = planned {
-                let dx = Float(x) + 0.5 - p.x
-                let dy = Float(y) + 0.5 - p.y
-                if dx * dx + dy * dy <= p.radius * p.radius {
-                    return Self.plannedInfluenceTint
-                }
-            }
-            return game.isInfluenced(x: x, y: y, by: Self.player) ? Self.influenceTint : nil
+            game.isInfluenced(x: x, y: y, by: Self.player) ? nil : Self.outsideTint
         }
     }
 
-    static let influenceTint = SIMD4<UInt8>(255, 245, 190, 70)
-    static let plannedInfluenceTint = SIMD4<UInt8>(140, 200, 255, 80)
+    static let outsideTint = SIMD4<UInt8>(0, 0, 0, 105)
+    /// Bauvorschau als sandfarbene Silhouette (wie im Original).
+    static let silhouetteTint = SIMD4<UInt8>(232, 196, 120, 205)
+    static let radiusColor = SIMD4<UInt8>(255, 215, 70, 255)
+
+    /// Gepunktete Linie um den Einflussbereich, den das geplante Gebäude hätte (Kontor, Marktplatz).
+    func radiusOutline(session: WorldSession, layout: IsometricLayout) -> [SpriteDraw] {
+        guard tool == .build, let type = selected, let hover,
+            let p = session.game.influencePreview(type, x: hover.x, y: hover.y, rotation: rotation)
+        else { return [] }
+        let world = session.game.world
+        func inside(_ x: Int, _ y: Int) -> Bool {
+            let dx = Float(x) + 0.5 - p.x
+            let dy = Float(y) + 0.5 - p.y
+            return dx * dx + dy * dy <= p.radius * p.radius
+        }
+        let dot = max(Float(2 >> layout.zoom.rawValue), 1)
+        var draws: [SpriteDraw] = []
+        let r = Int(p.radius.rounded(.up)) + 1
+        for y in Int(p.y) - r...Int(p.y) + r {
+            for x in Int(p.x) - r...Int(p.x) + r where inside(x, y) {
+                let lift = Float(layout.zoom.scaledElevation(world.tile(x: x, y: y)?.building.elevation ?? 0))
+                let edges: [(Bool, SIMD2<Float>, SIMD2<Float>)] = [
+                    (!inside(x, y - 1), SIMD2(Float(x), Float(y)), SIMD2(Float(x + 1), Float(y))),
+                    (!inside(x + 1, y), SIMD2(Float(x + 1), Float(y)), SIMD2(Float(x + 1), Float(y + 1))),
+                    (!inside(x, y + 1), SIMD2(Float(x), Float(y + 1)), SIMD2(Float(x + 1), Float(y + 1))),
+                    (!inside(x - 1, y), SIMD2(Float(x), Float(y)), SIMD2(Float(x), Float(y + 1))),
+                ]
+                for (isBorder, a, b) in edges where isBorder {
+                    for t: Float in [0.17, 0.5, 0.83] {
+                        let m = a + (b - a) * t
+                        let pixel = layout.pixel(ofScreen: layout.screenPosition(ofMap: m)) - SIMD2(dot / 2, dot / 2 + lift)
+                        draws.append(SpriteDraw(index: Minimap.whiteIndex, position: pixel, tint: Self.radiusColor, size: SIMD2(dot, dot)))
+                    }
+                }
+            }
+        }
+        return draws
+    }
+
+    /// Zeichnet die Radiuslinie im Koordinatensystem der Karte.
+    func drawMapOverlay(renderer: SpriteRenderer, encoder: MTLRenderCommandEncoder, transform: ViewTransform, layout: IsometricLayout, session: WorldSession) {
+        minimap.update(world: session.game.world, revision: session.revision)
+        guard let sheet = minimap.sheet else { return }
+        let dots = radiusOutline(session: session, layout: layout)
+        if !dots.isEmpty { renderer.draw(dots, from: sheet, transform: transform, encoder: encoder) }
+    }
 
     // MARK: Leiste und Statuszeile
 
@@ -320,6 +355,10 @@ final class BuildInterface {
             if let cost = building.buildCost {
                 add(Self.gfxCoin, 16, 564)
                 text("\(cost.money)", panelX + 50, 570)
+                if let upkeep = building.upkeep {
+                    add(Self.gfxUpkeep, 128, 564)
+                    text("\(upkeep)", panelX + 162, 570)
+                }
                 add(Self.gfxTools, 16, 594)
                 text("\(cost.tools)", panelX + 50, 600)
                 add(Self.gfxWood, 72, 594)
@@ -336,10 +375,16 @@ final class BuildInterface {
         let island = hover.flatMap { game.world.islandIndex(atX: $0.x, y: $0.y) }
         let stock = island.flatMap { game.settlement(player: Self.player, island: $0)?.stock } ?? player?.shipCargo ?? Stock()
         var x: Float = 10
-        for (gfx, value) in [(Self.gfxCoin, player?.money ?? 0), (Self.gfxWood, stock[.wood]), (Self.gfxTools, stock[.tools]), (Self.gfxBricks, stock[.bricks])] {
+        // Wie im Original: hinter jedem Vorrat in Klammern die Kosten des gewählten Gebäudes.
+        let cost = selected?.buildCost
+        let entries: [(Int, Int, Int?)] = [
+            (Self.gfxCoin, player?.money ?? 0, cost?.money), (Self.gfxTools, stock[.tools], cost?.tools),
+            (Self.gfxWood, stock[.wood], cost?.wood), (Self.gfxBricks, stock[.bricks], cost?.bricks),
+        ]
+        for (gfx, value, price) in entries {
             draws.append(SpriteDraw(index: library.index("TOOLS", gfx), position: SIMD2(x, 6)))
             x += 34
-            let label = library.text("\(value)", font: Self.font, at: SIMD2(x, 12))
+            let label = library.text(price.map { "\(value) (\($0))" } ?? "\(value)", font: Self.font, at: SIMD2(x, 12))
             draws += label.draws
             x += max(label.width, 24) + 18
         }
@@ -358,7 +403,10 @@ final class BuildInterface {
             "KONTOR": "Kontor", "WOHNUNG": "Wohnhaus", "HANDWERK": "Handwerksbetrieb", "PLANTAGE": "Farm/Plantage",
             "FISCHEREI": "Fischerei", "KIRCHE": "Kirche", "KAPELLE": "Kapelle", "WIRT": "Wirtshaus", "WACHTURM": "Wachturm",
             "STEINBRUCH": "Steinbruch", "BERGWERK": "Bergwerk", "JAGDHAUS": "Jagdhütte", "WERFT": "Werft",
-            "ROHSTWACHS": "Bäume pflanzen", "pMAUER": "Mauer",
+            "ROHSTWACHS": "Bäume pflanzen", "pMAUER": "Mauer", "MARKT": "Marktplatz", "BRUNNEN": "Brunnen",
+            "SCHULE": "Schule", "ARZT": "Arzt", "BADE": "Badehaus", "THEATER": "Theater", "HOCHSCHULE": "Hochschule",
+            "GALGEN": "Galgen", "SCHLOSS": "Schloss", "KATHETRALE": "Kathedrale", "DENKMAL": "Denkmal", "TRIUMPH": "Triumphbogen",
+            "MILITAR": "Burg", "KANONTURM": "Kanonenturm",
         ]
         if type.kind == "STRASSE" { return type.id < 410 ? "Steinstraße" : "Feldweg" }
         if type.kind == "BRUECKE" { return "Brücke" }

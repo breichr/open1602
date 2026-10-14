@@ -26,6 +26,8 @@ public struct BuildingType: Sendable, Equatable {
     public var production: String? = nil
     /// Einflussradius (`HAUS_PRODTYP.Radius`) in Feldern, falls als Zahl angegeben.
     public var radius: Int? = nil
+    /// Betriebskosten pro Zeiteinheit (`HAUS_PRODTYP.Kosten`, erster Wert = aktiv).
+    public var upkeep: Int? = nil
 
     /// Kategorie im Baumenü, falls baubar.
     public var buildCategory: BuildCategory? {
@@ -152,6 +154,7 @@ public struct BuildingTable: Sendable {
             if let prod = item.child("HAUS_PRODTYP") {
                 list[list.count - 1].production = prod.symbol("Kind")
                 list[list.count - 1].radius = prod.int("Radius")
+                list[list.count - 1].upkeep = prod.int("Kosten")
             }
         }
         self.init(types: list)

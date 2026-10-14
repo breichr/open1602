@@ -129,6 +129,9 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
                     buildUI.previewSprites(session: world, layout: layout, mapLibrary: library, timeMs: timeMs)
                 },
                 tileTint: buildUI.tileTint(session: world))
+            if let transform = mapScene.mapTransform(drawableSize: drawableSize, backingScale: backingScale), let layout = mapScene.currentLayout {
+                buildUI.drawMapOverlay(renderer: renderer, encoder: encoder, transform: transform, layout: layout, session: world)
+            }
             buildUI.draw(
                 renderer: renderer, encoder: encoder, drawableSize: drawableSize, backingScale: backingScale, session: world,
                 viewCorners: mapScene.viewCorners(viewSize: drawableSize / backingScale))
@@ -412,7 +415,8 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         mapScene.show(world)
         mapScene.pan(by: .zero)
         // Vorschau: entweder ein weiteres Haus oder (mit `--demo-road`) ein geplanter Feldweg mit Kurve.
-        let category: BuildCategory = CommandLine.arguments.contains("--demo-road") ? .roads : .housing
+        let category: BuildCategory =
+            CommandLine.arguments.contains("--demo-road") ? .roads : CommandLine.arguments.contains("--demo-market") ? .publicBuildings : .housing
         _ = buildUI.clickPanel(at: SIMD2(BuildInterface.categoryRects[category.rawValue].x + 5, BuildInterface.categoryRects[category.rawValue].y + 5))
         if category == .roads {
             buildUI.cycle(1)  // Feldweg statt Steinstraße
@@ -420,6 +424,9 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
                 buildUI.mouseDown(at: a)
                 buildUI.setHover((a.x + 5, a.y + 4))
             }
+        } else if category == .publicBuildings, let market = game.buildings[809] {
+            while buildUI.selected?.id != 809 { buildUI.cycle(1) }
+            buildUI.setHover(nearest(market, around: center + SIMD2(2, 9), radius: 12))
         } else {
             buildUI.setHover(nearest(house, around: center + SIMD2(2, 8), radius: 10))
         }

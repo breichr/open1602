@@ -100,6 +100,8 @@ Grammatik (zeilenweise, `;` leitet Kommentare ein):
 | `Rotate` | Bilder pro Drehrichtung (0 = nicht drehbar; 9 bei 3×3 …) |
 | `AnimAnz`, `AnimAdd` | Animationsschritte und Bildabstand zwischen ihnen |
 | `Posoffs` | Höhe über dem Meer in Pixeln (GFX; MGFX/SGFX halbiert) |
+| `HAUS_PRODTYP.Kosten` | Betriebskosten aktiv, ruhend (Konstanten `KOST_…` am Dateianfang, z. B. Marktplatz 10/5, Kontor 15) |
+| `HAUS_PRODTYP.Radius` | Einfluss- bzw. Arbeitsradius; `RADIUS_HQ`/`RADIUS_MARKT` sind Programmkonstanten (gemessen ≈ 16 bzw. 17) |
 | `RandAnz`, `RandAdd` | Zufallsvariante **der ID** beim Bauen (z. B. 11 Baumarten mit ID-Abstand 2), nicht der Grafik |
 
 Bildindex eines Feldes: `Gfx + Drehung·Rotate + Animation·AnimAdd + Teil`. `Teil` ist der Versatz `(dx, dy)` im gedrehten Grundriss, zurückgerechnet in die zeilenweise Anordnung (siehe `BuildingType.spriteIndex`). Blickrichtungen der Kamera addieren sich zur Drehung des Feldes.

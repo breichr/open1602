@@ -49,7 +49,9 @@ Jeder Meilenstein endet mit etwas, das man sieht oder ausprobieren kann.
 - [x] Neues Modul `AnnoSim`: Spielstand (Spieler, Siedlungen, Lager) und Bauregeln, ohne Darstellung
 - [x] Bauleiste nach `GADDATA/BAU.GAD` mit Originalgrafiken (TOOLS, BAUHAUS) und ZEI-Schrift: 8 Kategorien, Gebäude blättern, Kosten
 - [x] Minikarte mit Sichtrahmen (Klick springt), Statuszeile mit Geld und Inselvorrat
-- [x] Bauvorschau grün/rot, Drehen (`,` `.`), Straßen ziehen mit automatischer Form, Abreißen (D)
+- [x] Bauvorschau wie im Original (abgeglichen mit Gameplay-Video): sandfarbene Silhouette bzw. rot, außerhalb des Einflussbereichs abgedunkelt, gepunktete Radiuslinie für Kontor/Marktplatz, Kosten in Klammern in der Statuszeile, Betriebskosten in der Leiste
+- [x] Drehen (`,` `.`), Wege ziehen mit automatischer Form schon in der Vorschau, Abreißen (D)
+- [x] Marktplatz erweitert den Einflussbereich
 - [x] Kontor an der Küste: Erstes Kontor baut aus der Schiffsladung, der Rest wird ins Kontor entladen; Einflussbereich
 - [x] Platzierungsregeln: freier Boden (Bäume werden gerodet), Strand (Fischerei, Steg), Berghang (Minen), Fluss (Brücken), fremdes Gebiet
 - [x] Baukosten aus `HAUS_BAUKOST` (Geld, Holz, Werkzeug, Ziegel), Zufallsvarianten (`RandAnz`) beim Bauen
@@ -57,11 +59,10 @@ Jeder Meilenstein endet mit etwas, das man sieht oder ausprobieren kann.
 **Ergebnis:** Man kann auf einer Zufallswelt ein Kontor gründen und eine erste Siedlung mit Wohnhäusern, Wegen und Betrieben bauen.
 
 **Vereinfachungen/offen:**
-- Kontor-Radius geschätzt (13 Felder, `RADIUS_HQ` steht nicht in den Daten)
+- Radien von Kontor (16) und Marktplatz (17) aus einem Gameplay-Video vermessen (`RADIUS_HQ`/`RADIUS_MARKT` stehen nicht in den Daten)
 - Gebäudenamen aus `Language.dll` fehlen noch (Platzhalter aus den Daten)
 - Kein Abrissrückgewinn
 - Werft und Steg: Regeln vereinfacht
-- Marktplatz fehlt (keine Baukosten in `haeuser.cod`?)
 - Die Hauptschalter oben in der Leiste haben noch keine Funktion
 
 ## M5 – Wirtschaft (Kern des Spiels)

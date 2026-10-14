@@ -71,6 +71,16 @@ final class MapScene {
         return library
     }
 
+    /// Aktuelle Anordnung (Zoom, Blickrichtung) für Overlays.
+    var currentLayout: IsometricLayout? { layout() }
+
+    /// Abbildung der Kartenpixel auf das Drawable (für Overlays im Kartenraum).
+    func mapTransform(drawableSize: SIMD2<Float>, backingScale: Float) -> ViewTransform? {
+        guard let layout = layout() else { return nil }
+        let center = layout.pixel(ofScreen: layout.screenPosition(ofMap: focus)).rounded(.down)
+        return ViewTransform(drawableSize: drawableSize, scale: backingScale, offset: (drawableSize / 2 - center * backingScale).rounded(.down))
+    }
+
     /// Ecken des sichtbaren Ausschnitts in Kartenkoordinaten.
     func viewCorners(viewSize: SIMD2<Float>) -> [SIMD2<Float>] {
         guard let layout = layout() else { return [] }
