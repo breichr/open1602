@@ -49,4 +49,24 @@ struct LayoutTests {
         #expect(layout.spriteIndex(tile, timeMs: 0) == 102)
         #expect(layout.spriteIndex(tile, timeMs: 130 * 5) == 101)
     }
+
+    /// Ein hohes Figurenbild (Schiff) muss nach allen Kacheln gezeichnet werden, die es überdeckt.
+    @Test func tallFigureIsDrawnAfterCoveredTiles() {
+        let grid = Flat(width: 10, height: 10)
+        let layout = IsometricLayout(mapWidth: 10, mapHeight: 10, rotation: 0, zoom: .large)
+        let shipIndex = 999
+        let ship = FigureSprite(position: SIMD2(4.5, 4.5), index: shipIndex, anchor: SIMD2(60, 40))
+        let draws = layout.sprites(for: grid, figures: [ship]) { index in
+            index == shipIndex ? (120, 120) : (64, 31)
+        }
+        let shipDraw = draws.firstIndex { $0.index == shipIndex }!
+        let shipBottom = draws[shipDraw].position.y + 120
+        let shipLeft = draws[shipDraw].position.x
+        // Keine später gezeichnete Kachel darf mit ihrer Oberkante über der Unterkante des Schiffs liegen
+        // und es horizontal überlappen.
+        for tile in draws[(shipDraw + 1)...] {
+            let overlapsX = tile.position.x < shipLeft + 120 && tile.position.x + 64 > shipLeft
+            #expect(!(overlapsX && tile.position.y < shipBottom - 31), "Kachel bei \(tile.position) übermalt das Schiff")
+        }
+    }
 }

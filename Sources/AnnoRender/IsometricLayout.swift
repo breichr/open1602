@@ -165,15 +165,17 @@ public struct IsometricLayout: Sendable {
             bRange = max(bRange.lowerBound, bMin)...max(min(bRange.upperBound, bMax), max(bRange.lowerBound, bMin))
         }
 
-        // Figuren nach Bildschirmfeld sortieren.
-        var figuresByCell: [Int: [SpriteDraw]] = [:]
+        // Figuren werden am Ende der Reihe gezeichnet, in der die Unterkante ihres Bildes liegt.
+        // So übermalen flache Kacheln weiter vorn (z. B. Meer) keine Rümpfe, die über das eigene Feld hinausragen.
+        var figuresByRow: [Int: [SpriteDraw]] = [:]
         for figure in figures {
             let s = screenPosition(ofMap: figure.position)
-            let cellX = Int(s.x.rounded(.down))
-            let cellY = Int(s.y.rounded(.down))
             let ground = pixel(ofScreen: s)
             let position = ground - figure.anchor - SIMD2(0, figure.elevation)
-            figuresByCell[cellY * gw + cellX, default: []].append(SpriteDraw(index: figure.index, position: position))
+            let height = Float(spriteSize(figure.index)?.height ?? 0)
+            let anchorRow = Int((s.x + s.y).rounded(.down))
+            let bottomRow = Int(((position.y + height + figure.elevation) / step).rounded(.down)) - 1
+            figuresByRow[max(anchorRow, bottomRow), default: []].append(SpriteDraw(index: figure.index, position: position))
         }
 
         var draws: [SpriteDraw] = []
@@ -194,9 +196,9 @@ public struct IsometricLayout: Sendable {
                             position: SIMD2(origin.x, origin.y + Float(zoom.tileHeight - size.height) - elevation)))
                     }
                 }
-                if let cellFigures = figuresByCell[sy * gw + sx] { draws.append(contentsOf: cellFigures) }
                 sx += 1
             }
+            if let rowFigures = figuresByRow[b] { draws.append(contentsOf: rowFigures) }
         }
         return draws
     }
