@@ -3,12 +3,14 @@ import AnnoRender
 import AppKit
 import MetalKit
 
-/// Steuert, was die App anzeigt: den Startbildschirm oder den BSH-Viewer (Tab wechselt).
+/// Steuert, was die App anzeigt: Startbildschirm, Inselansicht oder BSH-Viewer (Tab wechselt).
 @MainActor
 final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
     enum Mode {
         /// Startbildschirm, 1024×768 seitenverhältnistreu ins Fenster skaliert.
         case title
+        /// Inselansicht: Pfeiltasten/Ziehen scrollen, +/− Zoom, R drehen, N/P Insel.
+        case island
         /// Sprite-Browser: ←/→ Bild, ↑/↓ Datei, +/− Zoom.
         case viewer
     }
@@ -20,6 +22,7 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
 
     private var mode: Mode = .title
     private let titleSheet: SpriteSheet
+    private let islandScene: IslandScene
 
     private let bshFiles: [String]
     private var fileIndex: Int
@@ -47,12 +50,14 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         renderer = try SpriteRenderer(device: device, pixelFormat: view.colorPixelFormat)
         try renderer.setPalette(Palette(colFile: gameData.read("ToolGfx/STADTFLD.COL")))
         titleSheet = try SpriteSheet(device: device, archive: BSHArchive(fileBytes: gameData.read("ToolGfx/START.BSH")))
+        islandScene = try IslandScene(gameData: gameData, device: device)
 
         bshFiles = gameData.files(withExtension: "bsh")
         fileIndex = bshFiles.firstIndex { $0.lowercased() == "gfx/stadtfld.bsh" } ?? 0
         super.init()
         view.delegate = self
         view.onKeyDown = { [weak self] event in self?.handleKey(event) ?? false }
+        view.onPan = { [weak self] delta in self?.pan(by: delta) }
     }
 
     // MARK: Darstellung
@@ -80,6 +85,8 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         case .title:
             let transform = ViewTransform.fit(virtualSize: Self.titleSize, drawableSize: drawableSize)
             renderer.draw([SpriteDraw(index: 0, position: .zero)], from: titleSheet, transform: transform, encoder: encoder)
+        case .island:
+            islandScene.draw(renderer: renderer, encoder: encoder, drawableSize: drawableSize, backingScale: backingScale)
         case .viewer:
             if let sheet = currentViewerSheet() {
                 let transform = ViewTransform(drawableSize: drawableSize, scale: backingScale * zoom)
@@ -145,7 +152,9 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
     func updateTitle() {
         switch mode {
         case .title:
-            view.window?.title = "Open1602 – Tab: Sprite-Viewer"
+            view.window?.title = "Open1602  ·  Tab: Inseln / Sprite-Viewer"
+        case .island:
+            view.window?.title = "\(islandScene.title)  ·  ←↑→↓ Scrollen  +− Zoom  R Drehen  N/P Insel"
         case .viewer:
             let count = currentViewerSheet()?.count ?? 0
             var info = "\(bshFiles[fileIndex])  #\(imageIndex) / \(count)"
@@ -159,35 +168,81 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
     // MARK: Eingabe
 
     private func handleKey(_ event: NSEvent) -> Bool {
-        let step = event.modifierFlags.contains(.shift) ? 10 : 1
-        switch (mode, event.keyCode) {
-        case (_, 48):  // Tab
-            mode = mode == .title ? .viewer : .title
-        case (.viewer, 123):  // ←
-            moveImage(by: -step)
-        case (.viewer, 124):  // →
-            moveImage(by: step)
-        case (.viewer, 125):  // ↓
-            moveFile(by: 1)
-        case (.viewer, 126):  // ↑
-            moveFile(by: -1)
-        case (.viewer, 116):  // Bild auf
-            moveImage(by: -100)
-        case (.viewer, 121):  // Bild ab
-            moveImage(by: 100)
-        default:
-            switch (mode, event.charactersIgnoringModifiers) {
-            case (.viewer, "+"), (.viewer, "="):
-                zoom = min(zoom + 1, 8)
-            case (.viewer, "-"):
-                zoom = max(zoom - 1, 1)
-            default:
-                return false
+        if event.keyCode == 48 {  // Tab
+            mode = switch mode {
+            case .title: .island
+            case .island: .viewer
+            case .viewer: .title
             }
+        } else {
+            let handled = switch mode {
+            case .title: false
+            case .island: handleIslandKey(event)
+            case .viewer: handleViewerKey(event)
+            }
+            guard handled else { return false }
         }
         updateTitle()
         view.needsDisplay = true
         return true
+    }
+
+    private func handleIslandKey(_ event: NSEvent) -> Bool {
+        let step: Float = event.modifierFlags.contains(.shift) ? 400 : 100
+        do {
+            switch event.keyCode {
+            case 123: islandScene.pan(by: SIMD2(-step, 0))  // ←
+            case 124: islandScene.pan(by: SIMD2(step, 0))  // →
+            case 125: islandScene.pan(by: SIMD2(0, step))  // ↓
+            case 126: islandScene.pan(by: SIMD2(0, -step))  // ↑
+            default:
+                switch event.charactersIgnoringModifiers?.lowercased() {
+                case "+", "=": islandScene.setZoom(ZoomLevel(rawValue: islandScene.zoom.rawValue - 1) ?? .large)
+                case "-": islandScene.setZoom(ZoomLevel(rawValue: islandScene.zoom.rawValue + 1) ?? .small)
+                case "r": islandScene.rotate(event.modifierFlags.contains(.shift) ? -1 : 1)
+                case "n": try islandScene.nextIsland(1)
+                case "p": try islandScene.nextIsland(-1)
+                default: return false
+                }
+            }
+        } catch {
+            NSLog("Insel konnte nicht geladen werden: %@", String(describing: error))
+        }
+        return true
+    }
+
+    private func handleViewerKey(_ event: NSEvent) -> Bool {
+        let step = event.modifierFlags.contains(.shift) ? 10 : 1
+        switch event.keyCode {
+        case 123: moveImage(by: -step)  // ←
+        case 124: moveImage(by: step)  // →
+        case 125: moveFile(by: 1)  // ↓
+        case 126: moveFile(by: -1)  // ↑
+        case 116: moveImage(by: -100)  // Bild auf
+        case 121: moveImage(by: 100)  // Bild ab
+        default:
+            switch event.charactersIgnoringModifiers {
+            case "+", "=": zoom = min(zoom + 1, 8)
+            case "-": zoom = max(zoom - 1, 1)
+            default: return false
+            }
+        }
+        return true
+    }
+
+    /// Ziehen mit der Maus oder Scrollen auf dem Trackpad (Delta in Punkten).
+    private func pan(by delta: SIMD2<Float>) {
+        guard mode == .island else { return }
+        islandScene.pan(by: delta)
+        view.needsDisplay = true
+    }
+
+    /// Für `--snapshot`: Inselansicht einstellen.
+    func showIsland(file: String?, zoom: Int?, rotation: Int?) throws {
+        mode = .island
+        if let file { try islandScene.select(file: file) }
+        if let zoom, let level = ZoomLevel(rawValue: zoom) { islandScene.setZoom(level) }
+        if let rotation { islandScene.rotate(rotation) }
     }
 
     private func moveImage(by delta: Int) {

@@ -98,3 +98,30 @@ struct RenderTests {
         #expect(sheet.pages.count <= 4)
     }
 }
+
+extension RenderTests {
+    /// Sprites auf verschiedenen Atlasseiten müssen in Aufrufreihenfolge gezeichnet werden.
+    @Test(.enabled(if: device != nil)) func drawOrderAcrossAtlasPages() throws {
+        func solid(_ index: UInt8) -> IndexedImage {
+            var image = IndexedImage(width: 4, height: 4, type: 1)
+            image.indices = Array(repeating: index, count: 16)
+            image.opaque = Array(repeating: true, count: 16)
+            return image
+        }
+        var colors = [RGBColor](repeating: RGBColor(r: 0, g: 0, b: 0), count: 256)
+        colors[1] = RGBColor(r: 255, g: 0, b: 0)
+        colors[2] = RGBColor(r: 0, g: 255, b: 0)
+        // Seitengröße 4 → jedes Bild landet auf einer eigenen Seite.
+        let sheet = try SpriteSheet(device: Self.device!, images: [solid(1), solid(2)], packer: AtlasPacker(pageSize: 4))
+        #expect(sheet.pages.count == 2)
+        let palette = Palette(colors: colors)
+        let greenOnTop = try render(
+            [SpriteDraw(index: 1, position: .zero), SpriteDraw(index: 0, position: .zero)],
+            sheet: sheet, palette: palette, width: 4, height: 4)
+        #expect(Array(greenOnTop[0..<4]) == [0, 0, 255, 255])
+        let redOnTop = try render(
+            [SpriteDraw(index: 0, position: .zero), SpriteDraw(index: 1, position: .zero)],
+            sheet: sheet, palette: palette, width: 4, height: 4)
+        #expect(Array(redOnTop[0..<4]) == [0, 255, 0, 255])
+    }
+}

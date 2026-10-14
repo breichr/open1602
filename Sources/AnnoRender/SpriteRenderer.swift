@@ -43,7 +43,11 @@ public final class SpriteRenderer {
     private struct SpriteInstance {
         var dst: SIMD4<Float>
         var src: SIMD4<Float>
+        var extra: SIMD4<UInt32>
     }
+
+    /// Höchstzahl gleichzeitig gebundener Atlasseiten (muss zu `MAX_PAGES` im Shader passen).
+    public static let maxPages = 16
 
     /// Layout muss zu `Uniforms` im Shader passen.
     private struct ViewUniforms {
@@ -89,35 +93,39 @@ public final class SpriteRenderer {
         _ sprites: [SpriteDraw], from sheet: SpriteSheet, transform: ViewTransform,
         encoder: MTLRenderCommandEncoder
     ) {
-        guard let paletteTexture, !sprites.isEmpty else { return }
+        guard let paletteTexture, !sprites.isEmpty, !sheet.pages.isEmpty else { return }
+        precondition(sheet.pages.count <= Self.maxPages, "Zu viele Atlasseiten (\(sheet.pages.count))")
 
-        var byPage = [[SpriteInstance]](repeating: [], count: sheet.pages.count)
+        // Reihenfolge bleibt erhalten: ein Draw-Call für alle Sprites, Seite pro Instanz.
+        var instances: [SpriteInstance] = []
+        instances.reserveCapacity(sprites.count)
         for sprite in sprites {
             let p = sheet.placements[sprite.index]
             guard p.width > 0 else { continue }
             let size = SIMD2<Float>(Float(p.width), Float(p.height))
-            byPage[p.page].append(SpriteInstance(
+            instances.append(SpriteInstance(
                 dst: SIMD4(lowHalf: sprite.position, highHalf: size),
-                src: SIMD4(Float(p.x), Float(p.y), size.x, size.y)))
+                src: SIMD4(Float(p.x), Float(p.y), size.x, size.y),
+                extra: SIMD4(UInt32(p.page), 0, 0, 0)))
         }
+        guard !instances.isEmpty else { return }
 
         var uniforms = ViewUniforms(drawableSize: transform.drawableSize, offset: transform.offset, scale: transform.scale)
         encoder.setRenderPipelineState(pipeline)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<ViewUniforms>.stride, index: 1)
-        encoder.setFragmentTexture(paletteTexture, index: 1)
+        let pages = (0..<Self.maxPages).map { sheet.pages[min($0, sheet.pages.count - 1)] }
+        encoder.setFragmentTextures(pages, range: 0..<Self.maxPages)
+        encoder.setFragmentTexture(paletteTexture, index: Self.maxPages)
 
-        for (page, instances) in byPage.enumerated() where !instances.isEmpty {
-            let length = MemoryLayout<SpriteInstance>.stride * instances.count
-            if length <= 4096 {
-                instances.withUnsafeBytes { encoder.setVertexBytes($0.baseAddress!, length: length, index: 0) }
-            } else {
-                guard let buffer = instances.withUnsafeBytes({
-                    device.makeBuffer(bytes: $0.baseAddress!, length: length, options: .storageModeShared)
-                }) else { continue }
-                encoder.setVertexBuffer(buffer, offset: 0, index: 0)
-            }
-            encoder.setFragmentTexture(sheet.pages[page], index: 0)
-            encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4, instanceCount: instances.count)
+        let length = MemoryLayout<SpriteInstance>.stride * instances.count
+        if length <= 4096 {
+            instances.withUnsafeBytes { encoder.setVertexBytes($0.baseAddress!, length: length, index: 0) }
+        } else {
+            guard let buffer = instances.withUnsafeBytes({
+                device.makeBuffer(bytes: $0.baseAddress!, length: length, options: .storageModeShared)
+            }) else { return }
+            encoder.setVertexBuffer(buffer, offset: 0, index: 0)
         }
+        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4, instanceCount: instances.count)
     }
 }

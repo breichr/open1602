@@ -7,6 +7,7 @@ let usage = """
     Benutzung:
       anno-tool info [--data DIR]
       anno-tool export-bsh (<datei> | --all) [--out DIR] [--palette DATEI] [--data DIR]
+      anno-tool dump-cod <datei> [--json] [--data DIR]
 
     Optionen:
       --data DIR       Spielordner (Standard: $OPEN1602_DATA, ./ANNO1602/ANNO1602 oder .)
@@ -139,6 +140,50 @@ func exportBSH(_ args: Arguments) throws {
     }
 }
 
+/// Gibt eine `.cod`- oder `.gad`-Datei als entschlüsselten Text oder geparst als JSON aus.
+func dumpCOD(_ args: Arguments) throws {
+    guard args.positional.count == 1 else { throw UsageError(description: "Genau eine Datei angeben") }
+    let arg = args.positional[0]
+    let bytes: [UInt8]
+    if FileManager.default.fileExists(atPath: arg) {
+        bytes = [UInt8](try Data(contentsOf: URL(fileURLWithPath: arg)))
+    } else {
+        bytes = try GameData.locate(explicit: args.options["--data"]).read(arg)
+    }
+    let encrypted = !arg.lowercased().hasSuffix(".gad")
+    let text = encrypted ? COD.decrypt(bytes) : COD.decodeLatin1(bytes)
+    guard args.flags.contains("--json") else {
+        print(text)
+        return
+    }
+    let doc = COD.parse(text: text)
+    func json(_ value: CODValue) -> Any {
+        switch value {
+        case .int(let v): v
+        case .float(let v): v
+        case .symbol(let s): s
+        }
+    }
+    func json(_ object: CODObject) -> [String: Any] {
+        var out: [String: Any] = [:]
+        for (key, values) in object.fields { out[key] = values.map(json) }
+        let repeated = Dictionary(grouping: object.entries, by: \.key).filter { $0.value.count > 1 }
+        for (key, entries) in repeated { out[key + "[]"] = entries.map { $0.values.map(json) } }
+        for (name, children) in object.children { out[name] = children.map(json) }
+        return out
+    }
+    var root: [String: Any] = [
+        "variables": doc.variables.mapValues(json),
+        "unparsed": doc.unparsedLines.map { "\($0.line): \($0.text)" },
+    ]
+    var collections: [String: Any] = [:]
+    for name in doc.collections.keys { collections[name] = doc.items(name).map(json) }
+    root["collections"] = collections
+    root["singletons"] = doc.singletons.mapValues { $0.map(json) }
+    let data = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
+    FileHandle.standardOutput.write(data)
+}
+
 let argv = CommandLine.arguments.dropFirst()
 do {
     guard let command = argv.first else {
@@ -149,6 +194,7 @@ do {
     switch command {
     case "info": try info(args)
     case "export-bsh": try exportBSH(args)
+    case "dump-cod": try dumpCOD(args)
     case "help", "-h", "--help": print(usage)
     default: throw UsageError(description: "Unbekannter Befehl '\(command)'")
     }

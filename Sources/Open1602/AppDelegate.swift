@@ -74,10 +74,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return args.firstIndex(of: name).flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
     }
 
-    /// `--snapshot DATEI [--viewer BSH] [--image N]`: rendert ein Bild (2048×1536, Retina 2×) als PNG und beendet die App.
+    /// `--snapshot DATEI [--viewer BSH --image N | --island SCP --zoom 0…2 --rotation 0…3]`: rendert ein Bild (2048×1536, Retina 2×) als PNG und beendet die App.
     private func writeSnapshot(controller: GameController, to path: String) {
         if argument("--viewer") != nil || argument("--image") != nil {
             controller.showViewer(file: argument("--viewer"), image: argument("--image").flatMap(Int.init) ?? 0)
+        }
+        if argument("--island") != nil {
+            do {
+                try controller.showIsland(
+                    file: argument("--island"), zoom: argument("--zoom").flatMap(Int.init),
+                    rotation: argument("--rotation").flatMap(Int.init))
+            } catch {
+                return fail("Insel konnte nicht geladen werden", error)
+            }
         }
         let (width, height) = (2048, 1536)
         guard

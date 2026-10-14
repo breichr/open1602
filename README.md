@@ -36,7 +36,10 @@ swift test
 .build/release/Open1602
 ```
 
-In der App wechselt **Tab** zwischen dem Startbildschirm und dem Sprite-Viewer. Im Viewer blättern ←/→ durch die Bilder, ↑/↓ wechseln die Datei und +/− zoomen.
+In der App wechselt **Tab** zwischen Startbildschirm, Inselansicht und Sprite-Viewer.
+
+- **Inselansicht:** Pfeiltasten, Ziehen oder Trackpad scrollen. +/− wechselt die Zoomstufe, R/⇧R dreht den Blick, N/P wechselt die Insel.
+- **Sprite-Viewer:** ←/→ blättern durch die Bilder, ↑/↓ wechseln die Datei, +/− zoomen.
 
 Hinweis für Builds ohne Xcode: Swift 6.4 aus den Command Line Tools findet das Makro-Plugin von swift-testing sporadisch nicht. `Package.swift` gibt den Plugin-Pfad deshalb explizit mit.
 

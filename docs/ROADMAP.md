@@ -21,13 +21,16 @@ Jeder Meilenstein endet mit etwas, das man sieht oder ausprobieren kann.
 
 **Ergebnis:** Der GPU-Renderer gibt den Startbildschirm pixelgenau wie die CPU-Dekodierung aus. Ein Offscreen-Test vergleicht dafür jedes Pixel.
 
-## M2 – Eine Insel
-- [ ] COD-Entschlüsselung und -Parser, `haeuser.cod` → Gebäudetabelle (ID → Gfx, Größe, Rotationen)
-- [ ] SCP-Parser (`INSEL3`, `INSELHAUS`)
-- [ ] Isometrischer Renderer: Kacheln, mehrfeldrige Gebäude, korrekte Tiefensortierung
-- [ ] Kamera: Scrollen, 3 Zoomstufen, Drehen in 4 Richtungen
+## M2 – Eine Insel ✅
+- [x] COD-Entschlüsselung und -Parser: `haeuser.cod` (491 Gebäude) und `figuren.cod` (96 Figuren) ohne unverstandene Zeilen
+- [x] Gebäudetabelle (ID → Grafik, Größe, Drehungen, Animation, Höhe)
+- [x] SCP-Parser (`INSEL3/4/5`, `INSELHAUS`), besiedelte Varianten auf ihre Basisvorlage gelegt
+- [x] Isometrischer Renderer: Kacheln, mehrfeldrige Gebäude, Höhen, korrekte Zeichenreihenfolge (ein Draw-Call über alle Atlasseiten)
+- [x] Kamera: Scrollen (Pfeiltasten, Ziehen, Trackpad), 3 Zoomstufen (+/−), Drehen in 4 Richtungen (R / ⇧R), Inselwechsel (N/P)
 
-**Fertig, wenn** jede Inselvorlage aus `Nord/` und `Sued/` korrekt dargestellt wird.
+**Ergebnis:** Alle 401 Inseln aus `Nord/` und `Sued/` gehen vollständig, ohne unbekannte IDs und mit gültigen Bildindizes auf, inklusive besiedelter Varianten mit Städten. Ausnahme: `big13s19.scp` passt nicht zu seiner Basis (30×30 statt 70×60).
+
+**Offen für später:** Inseln in `NORDNAT/` und `SUEDNAT/` (Eingeborene) und die Szenario-Syntax in `Szenes/*.cod`.
 
 ## M3 – Lebendige Welt
 - [ ] Animationen (Wasser, Bäume, Gebäude), Meer und Küsten
@@ -84,6 +87,6 @@ brew install --cask open1602
 
 ## Offene Fragen
 - Original-Tickrate und Zeitmodell der Simulation
-- Bedeutung der `INSEL3`-Felder und der BSH-Bildtypen
-- Wie Gebäudeteile mehrfeldriger Gebäude in `STADTFLD.BSH` angeordnet sind
+- Restliche Felder in `INSEL3/4/5` (Klima, Vorlagennummer?) und Bedeutung der BSH-Bildtypen
+- Welche Basis `Nord/big13s19.scp` hat
 - Ob diese CD die Königsedition ist (Datum 2001 → vermutlich ja). Dann müssten die Addon-Daten erkannt werden.
