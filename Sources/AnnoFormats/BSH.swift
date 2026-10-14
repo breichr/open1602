@@ -90,7 +90,14 @@ public struct BSHArchive: Sendable {
     }
 
     public func image(at index: Int) throws -> IndexedImage {
-        let header = try header(at: index)
+        var header = try header(at: index)
+        // Schriftzeichen (`ZEI`) ragen für Unterschneidungen über ihre Laufweite hinaus: Bild verbreitern.
+        if chunkName == "ZEI" {
+            let extent = try measure(index)
+            header = BSHImageHeader(
+                width: max(header.width, extent.width), height: max(header.height, extent.height), type: header.type,
+                length: header.length)
+        }
         var image = IndexedImage(width: header.width, height: header.height, type: header.type)
         var reader = ByteReader(payload, position: offsets[index] + 16)
         var x = 0
@@ -115,5 +122,30 @@ public struct BSHArchive: Sendable {
             x += count
         }
         return image
+    }
+
+    /// Tatsächlich beschriebene Fläche eines Bildes.
+    private func measure(_ index: Int) throws -> (width: Int, height: Int) {
+        var reader = ByteReader(payload, position: offsets[index] + 16)
+        var x = 0
+        var y = 0
+        var maxX = 0
+        var maxY = 0
+        while true {
+            let code = try reader.u8("RLE von Bild \(index)")
+            if code == 0xFF { break }
+            if code == 0xFE {
+                x = 0
+                y += 1
+                continue
+            }
+            x += Int(code)
+            let count = Int(try reader.u8("RLE von Bild \(index)"))
+            _ = try reader.bytes(count, "RLE von Bild \(index)")
+            x += count
+            maxX = max(maxX, x)
+            maxY = max(maxY, y + 1)
+        }
+        return (maxX, maxY)
     }
 }

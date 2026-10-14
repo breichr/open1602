@@ -42,6 +42,13 @@ struct OriginalDataTests {
         }
     }
 
+    @Test(arguments: TestData.gameData?.files(withExtension: "zei") ?? [])
+    func everyFontDecodes(path: String) throws {
+        let archive = try BSHArchive(fileBytes: data.read(path), chunkName: "ZEI")
+        #expect(archive.count > 0)
+        for i in 0..<archive.count { _ = try archive.image(at: i) }
+    }
+
     @Test func islandChunks() throws {
         let chunks = try Chunk.readAll(data.read("Nord/big00.scp"))
         #expect(chunks.map(\.name) == ["INSEL3", "INSELHAUS"])

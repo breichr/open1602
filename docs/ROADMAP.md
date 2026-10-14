@@ -45,10 +45,24 @@ Jeder Meilenstein endet mit etwas, das man sieht oder ausprobieren kann.
 
 **Offen für später:** Träger und Marktkarren (brauchen die Wirtschaft, M5), fahrende Schiffe (M6), Spielerfarben der Schiffe und Flaggen, Soundeffekte von Gebäuden.
 
-## M4 – Bauen
-- [ ] UI-Grundgerüst nach `GADDATA` und `ZEI`-Fonts
-- [ ] Baumenü, Platzierungsregeln, Straßen, Abriss
-- [ ] Kontor, Einflussbereiche, Baukosten (Geld und Material)
+## M4 – Bauen ✅
+- [x] Neues Modul `AnnoSim`: Spielstand (Spieler, Siedlungen, Lager) und Bauregeln, ohne Darstellung
+- [x] Bauleiste nach `GADDATA/BAU.GAD` mit Originalgrafiken (TOOLS, BAUHAUS) und ZEI-Schrift: 8 Kategorien, Gebäude blättern, Kosten
+- [x] Minikarte mit Sichtrahmen (Klick springt), Statuszeile mit Geld und Inselvorrat
+- [x] Bauvorschau grün/rot, Drehen (`,` `.`), Straßen ziehen mit automatischer Form, Abreißen (D)
+- [x] Kontor an der Küste: Erstes Kontor baut aus der Schiffsladung, der Rest wird ins Kontor entladen; Einflussbereich
+- [x] Platzierungsregeln: freier Boden (Bäume werden gerodet), Strand (Fischerei, Steg), Berghang (Minen), Fluss (Brücken), fremdes Gebiet
+- [x] Baukosten aus `HAUS_BAUKOST` (Geld, Holz, Werkzeug, Ziegel), Zufallsvarianten (`RandAnz`) beim Bauen
+
+**Ergebnis:** Man kann auf einer Zufallswelt ein Kontor gründen und eine erste Siedlung mit Wohnhäusern, Wegen und Betrieben bauen.
+
+**Vereinfachungen/offen:**
+- Kontor-Radius geschätzt (13 Felder, `RADIUS_HQ` steht nicht in den Daten)
+- Gebäudenamen aus `Language.dll` fehlen noch (Platzhalter aus den Daten)
+- Kein Abrissrückgewinn
+- Werft und Steg: Regeln vereinfacht
+- Marktplatz fehlt (keine Baukosten in `haeuser.cod`?)
+- Die Hauptschalter oben in der Leiste haben noch keine Funktion
 
 ## M5 – Wirtschaft (Kern des Spiels)
 - [ ] Produktionsketten (Holz, Fisch, Stoffe, Alkohol …), Lager, Marktkarren

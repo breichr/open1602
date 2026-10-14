@@ -203,6 +203,36 @@ public struct IsometricLayout: Sendable {
         return draws
     }
 
+    /// Bild eines einzelnen Feldes an einer Kartenposition (z. B. für die Bauvorschau).
+    public func tileSprite(
+        _ tile: IslandTile, mapX x: Int, mapY y: Int, timeMs: Int = 0, tileOffset: Int = 0, tint: SIMD4<UInt8> = .zero,
+        spriteSize: (Int) -> (width: Int, height: Int)?
+    ) -> SpriteDraw? {
+        let (sx, sy) = screenCell(x: x, y: y)
+        let index = tileOffset + spriteIndex(tile, timeMs: timeMs)
+        guard let size = spriteSize(index) else { return nil }
+        let origin = tileOrigin(screenX: sx, screenY: sy)
+        let elevation = Float(zoom.scaledElevation(tile.building.elevation))
+        return SpriteDraw(
+            index: index, position: SIMD2(origin.x, origin.y + Float(zoom.tileHeight - size.height) - elevation), tint: tint)
+    }
+
+    /// Kartenfeld unter einem Punkt (virtuelle Pixel); erhöhte Felder (Land) werden bevorzugt.
+    public func pick(pixel p: SIMD2<Float>, grid: some TileGrid) -> (x: Int, y: Int)? {
+        for lift in [Float(zoom.scaledElevation(20)), 0] {
+            let s = screen(ofPixel: p + SIMD2(0, lift))
+            let m = mapPosition(ofScreen: s)
+            let x = Int(m.x.rounded(.down))
+            let y = Int(m.y.rounded(.down))
+            guard let tile = grid.tile(x: x, y: y) else { continue }
+            if Float(zoom.scaledElevation(tile.building.elevation)) == lift { return (x, y) }
+        }
+        let m = mapPosition(ofScreen: screen(ofPixel: p))
+        let x = Int(m.x.rounded(.down))
+        let y = Int(m.y.rounded(.down))
+        return grid.tile(x: x, y: y) != nil ? (x, y) : nil
+    }
+
     /// Bildindex eines Feldes unter Berücksichtigung der Blickrichtung und Animation.
     public func spriteIndex(_ tile: IslandTile, timeMs: Int = 0) -> Int {
         let (fw, fh) = tile.building.footprint(rotation: tile.rotation)

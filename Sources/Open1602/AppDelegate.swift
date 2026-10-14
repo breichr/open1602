@@ -93,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     scenario: argument("--world"), seed: argument("--seed").flatMap(UInt64.init), zoom: zoom,
                     rotation: rotation, panX: argument("--pan-x").flatMap(Float.init), panY: argument("--pan-y").flatMap(Float.init))
             }
+            if CommandLine.arguments.contains("--demo") { controller.buildDemoSettlement() }
         } catch {
             return fail("Karte konnte nicht geladen werden", error)
         }
@@ -124,6 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func fail(_ title: String, _ error: Error) {
+        FileHandle.standardError.write(Data("\(title): \(error)\n".utf8))
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = String(describing: error)

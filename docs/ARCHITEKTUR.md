@@ -32,7 +32,8 @@ open1602/
 │   │   ├── Island.swift       # .scp: INSEL3/INSELHAUS
 │   │   └── GameData.swift     # Spielordner-Auflösung (case-insensitive!)
 │   ├── AnnoSim/         # deterministische Spielsimulation, kein Rendering
-│   │   ├── World.swift        # Karte, Inseln, Felder
+│   │   ├── Game.swift         # Spielstand, Bauregeln, Kosten, Einfluss, Straßen, Abriss
+│   │   ├── Goods.swift        # Waren und Lager
 │   │   ├── Buildings.swift    # Gebäudetypen aus haeuser.cod
 │   │   ├── Economy.swift      # Produktionsketten, Lager, Märkte
 │   │   ├── Population.swift   # Bevölkerungsstufen, Bedürfnisse, Steuern

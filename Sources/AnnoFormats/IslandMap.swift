@@ -10,6 +10,9 @@ public struct IslandTile: Sendable, Equatable {
     public let dx: Int
     public let dy: Int
 
+    /// Feld, an dem das Gebäude beginnt (Ursprungsecke des Grundrisses), relativ zu diesem Feld.
+    public var originOffset: (dx: Int, dy: Int) { (-dx, -dy) }
+
     public init(building: BuildingType, fieldIndex: Int, rotation: Int, animation: Int, random: Int, dx: Int, dy: Int) {
         self.building = building
         self.fieldIndex = fieldIndex
@@ -82,6 +85,24 @@ public struct IslandMap: Sendable, TileGrid {
     }
 
     public subscript(x: Int, y: Int) -> IslandTile? { tile(x: x, y: y) }
+
+    /// Setzt ein Gebäude mit Ursprungsecke `(x, y)`; überschreibt belegte Felder.
+    public mutating func place(_ building: BuildingType, x: Int, y: Int, rotation: Int, animation: Int = 0) {
+        let (w, h) = building.footprint(rotation: rotation)
+        for dy in 0..<h {
+            for dx in 0..<w where x + dx < width && y + dy < height && x + dx >= 0 && y + dy >= 0 {
+                tiles[(y + dy) * width + x + dx] = IslandTile(
+                    building: building, fieldIndex: -1, rotation: rotation, animation: animation, random: 0, dx: dx, dy: dy)
+            }
+        }
+    }
+
+    /// Ursprungsecke und Grundriss des Gebäudes auf Feld `(x, y)`.
+    public func footprint(atX x: Int, y: Int) -> (x: Int, y: Int, width: Int, height: Int)? {
+        guard let tile = tile(x: x, y: y) else { return nil }
+        let (w, h) = tile.building.footprint(rotation: tile.rotation)
+        return (x - tile.dx, y - tile.dy, w, h)
+    }
 
     public func tile(x: Int, y: Int) -> IslandTile? {
         guard x >= 0, y >= 0, x < width, y < height else { return nil }

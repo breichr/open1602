@@ -1,5 +1,6 @@
 import AnnoFormats
 import AnnoRender
+import AnnoSim
 
 /// Eine Welt aus einem Szenario: Inseln, Startschiffe, Hirsche.
 @MainActor
@@ -11,7 +12,9 @@ final class WorldSession: MapContent {
     private(set) var scenarioIndex: Int
     private(set) var seed: UInt64
     private(set) var scenario: Scenario
-    private(set) var world: WorldMap
+    /// Spielstand mit Bauregeln; die Welt darin wird beim Bauen verändert.
+    private(set) var game: Game
+    var world: WorldMap { game.world }
     private var worldIndex = 0
     private var herd: Herd
     private var ships: [(position: SIMD2<Float>, gfx: Int, direction: Int)] = []
@@ -31,7 +34,9 @@ final class WorldSession: MapContent {
         figureGfx = gfx
         scenarioFiles = gameData.files(withExtension: "cod").filter { $0.lowercased().hasPrefix("szenes/") }
         scenarioIndex = scenarioFiles.firstIndex { $0.lowercased().hasSuffix("endless0.cod") } ?? 0
-        (scenario, world, herd) = (try Self.loadScenario(scenarioFiles[scenarioIndex], gameData: gameData), WorldMap(width: 1, height: 1, islands: [], buildings: buildings), Herd(positions: [], seed: 0, walkable: { _, _ in false }))
+        scenario = try Self.loadScenario(scenarioFiles[scenarioIndex], gameData: gameData)
+        game = Game(world: WorldMap(width: 1, height: 1, islands: [], buildings: buildings), buildings: buildings, players: [])
+        herd = Herd(positions: [], seed: 0, walkable: { _, _ in false })
         try generate()
     }
 
@@ -60,13 +65,14 @@ final class WorldSession: MapContent {
     private func generate() throws {
         var rng = SeededRandom(seed: seed)
         worldIndex = scenario.worlds.isEmpty ? 0 : Int.random(in: 0..<scenario.worlds.count, using: &rng)
-        world = try WorldMap.generate(
+        let world = try WorldMap.generate(
             scenario: scenario, worldIndex: worldIndex, seed: rng.next(), gameData: gameData, buildings: buildings)
-        let world = self.world
+        game = Game(world: world, buildings: buildings, scenario: scenario, seed: seed)
+        revision += 1
         let deer = world.islands.flatMap { island in
             island.deer.map { SIMD2(Float(island.x + $0.x) + 0.5, Float(island.y + $0.y) + 0.5) }
         }
-        herd = Herd(positions: deer, seed: seed, walkable: { x, y in Herd.isPasture(world.tile(x: x, y: y)) })
+        herd = Herd(positions: deer, seed: seed, walkable: { [weak self] x, y in Herd.isPasture(self?.game.world.tile(x: x, y: y)) })
         let positions = scenario.worlds.isEmpty ? [:] : scenario.worlds[worldIndex].shipPositions
         ships = scenario.ships.compactMap { ship in
             guard let p = positions[ship.player] else { return nil }
@@ -74,7 +80,16 @@ final class WorldSession: MapContent {
         }
     }
 
-    var grid: any TileGrid { world }
+    var grid: any TileGrid { game.world }
+
+    /// Zählt Änderungen an der Welt (für die Minikarte).
+    private(set) var revision = 0
+
+    /// Spielaktionen (Bauen, Abreißen) laufen über diese Methode, damit die Welt neu gezeichnet wird.
+    func mutateGame<T>(_ body: (inout Game) -> T) -> T {
+        revision += 1
+        return body(&game)
+    }
     var focus: SIMD2<Float>? {
         if let ship = ships.first { return ship.position }
         // Ohne Startschiff (Tutorials, Kakao02) auf die erste Insel schauen.

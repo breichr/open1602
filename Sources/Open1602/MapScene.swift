@@ -50,6 +50,8 @@ final class MapScene {
 
     func rotate(_ delta: Int) { rotation = ((rotation + delta) % 4 + 4) % 4 }
 
+    func setFocus(_ p: SIMD2<Float>) { focus = p }
+
     func setZoom(_ level: ZoomLevel) { zoom = level }
 
     /// Verschiebt die Kamera um `delta` Punkte auf dem Bildschirm.
@@ -69,7 +71,26 @@ final class MapScene {
         return library
     }
 
-    func draw(renderer: SpriteRenderer, encoder: MTLRenderCommandEncoder, drawableSize: SIMD2<Float>, backingScale: Float, timeMs: Int) {
+    /// Ecken des sichtbaren Ausschnitts in Kartenkoordinaten.
+    func viewCorners(viewSize: SIMD2<Float>) -> [SIMD2<Float>] {
+        guard let layout = layout() else { return [] }
+        let center = layout.pixel(ofScreen: layout.screenPosition(ofMap: focus))
+        return [SIMD2<Float>(-1, -1), SIMD2(1, -1), SIMD2(1, 1), SIMD2(-1, 1)].map { corner in
+            layout.mapPosition(ofScreen: layout.screen(ofPixel: center + corner * viewSize / 2))
+        }
+    }
+
+    /// Kartenfeld unter einem Punkt der Ansicht (Punkte, Ursprung oben links).
+    func pick(viewPoint: SIMD2<Float>, viewSize: SIMD2<Float>) -> (x: Int, y: Int)? {
+        guard let content, let layout = layout() else { return nil }
+        let center = layout.pixel(ofScreen: layout.screenPosition(ofMap: focus)).rounded(.down)
+        return layout.pick(pixel: center + viewPoint - viewSize / 2, grid: content.grid)
+    }
+
+    func draw(
+        renderer: SpriteRenderer, encoder: MTLRenderCommandEncoder, drawableSize: SIMD2<Float>, backingScale: Float, timeMs: Int,
+        overlay: (IsometricLayout, SpriteLibrary) -> [SpriteDraw] = { _, _ in [] }
+    ) {
         guard let content, let layout = layout(), let library = try? library() else { return }
         let scale = backingScale
         let center = layout.pixel(ofScreen: layout.screenPosition(ofMap: focus)).rounded(.down)
@@ -80,7 +101,7 @@ final class MapScene {
         let offset = library.offsets["STADTFLD"] ?? 0
         let draws = layout.sprites(
             for: content.grid, visible: visible, timeMs: timeMs, figures: figures, tileOffset: offset,
-            spriteSize: library.size(of:))
+            spriteSize: library.size(of:)) + overlay(layout, library)
         renderer.draw(
             draws, from: library.sheet,
             transform: ViewTransform(drawableSize: drawableSize, scale: scale, offset: (drawableSize / 2 - center * scale).rounded(.down)),

@@ -38,7 +38,8 @@ swift test
 
 In der App wechselt **Tab** zwischen Startbildschirm, Welt, Inselansicht und Sprite-Viewer.
 
-- **Welt:** ein Endlosspiel bzw. Szenario mit Inseln, Schiffen und Tieren. N/P wechselt das Szenario, G erzeugt eine neue Zufallswelt. Steuerung sonst wie in der Inselansicht.
+- **Welt:** ein Endlosspiel bzw. Szenario mit Inseln, Schiffen und Tieren. N/P wechselt das Szenario, G erzeugt eine neue Zufallswelt.
+- **Bauen:** Kategorie in der Leiste rechts wählen, mit den Pfeilen (oder `[` `]`) blättern und auf die Karte klicken. Zuerst ein Kontor an die Küste setzen. Straßen zieht man mit gedrückter Maustaste. `,` und `.` drehen das Gebäude, D schaltet auf Abreißen, Rechtsklick oder Esc bricht ab. Die Karte verschiebt man durch Ziehen (ohne Werkzeug), mit Rechts-Ziehen, über das Trackpad oder per Klick in die Minikarte.
 - **M / S:** Musik bzw. Umgebungsgeräusche an und aus.
 - **Inselansicht:** Pfeiltasten, Ziehen oder Trackpad scrollen. +/− wechselt die Zoomstufe, R/⇧R dreht den Blick, N/P wechselt die Insel.
 - **Sprite-Viewer:** ←/→ blättern durch die Bilder, ↑/↓ wechseln die Datei, +/− zoomen.

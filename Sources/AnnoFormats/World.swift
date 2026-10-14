@@ -16,20 +16,30 @@ public struct SeededRandom: RandomNumberGenerator, Sendable {
 /// Eine Insel an ihrer Weltposition.
 public struct PlacedIsland: Sendable {
     public let path: String
-    public let map: IslandMap
+    public internal(set) var map: IslandMap
     public let x: Int
     public let y: Int
     public let climate: Climate
     public let hasNatives: Bool
     /// Hirsche aus `HIRSCH2` (Inselkoordinaten).
     public let deer: [(x: Int, y: Int)]
+
+    public init(path: String, map: IslandMap, x: Int, y: Int, climate: Climate, hasNatives: Bool, deer: [(x: Int, y: Int)]) {
+        self.path = path
+        self.map = map
+        self.x = x
+        self.y = y
+        self.climate = climate
+        self.hasNatives = hasNatives
+        self.deer = deer
+    }
 }
 
 /// Weltkarte aus mehreren Inseln; alle übrigen Felder sind offenes Meer.
 public struct WorldMap: Sendable, TileGrid {
     public let width: Int
     public let height: Int
-    public let islands: [PlacedIsland]
+    public private(set) var islands: [PlacedIsland]
     /// Inselindex je Feld (−1 = Meer).
     private let owner: [Int16]
     /// Offenes Meer in verschiedenen Animationsphasen.
@@ -76,9 +86,19 @@ public struct WorldMap: Sendable, TileGrid {
 
     /// Insel an einer Weltposition.
     public func island(atX x: Int, y: Int) -> PlacedIsland? {
+        islandIndex(atX: x, y: y).map { islands[$0] }
+    }
+
+    /// Index der Insel an einer Weltposition.
+    public func islandIndex(atX x: Int, y: Int) -> Int? {
         guard x >= 0, y >= 0, x < width, y < height else { return nil }
         let index = Int(owner[y * width + x])
-        return index >= 0 ? islands[index] : nil
+        return index >= 0 ? index : nil
+    }
+
+    /// Ändert die Karte einer Insel (Bauen, Abreißen).
+    public mutating func modifyIsland(_ index: Int, _ body: (inout IslandMap) -> Void) {
+        body(&islands[index].map)
     }
 }
 

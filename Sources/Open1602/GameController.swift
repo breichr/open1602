@@ -2,6 +2,7 @@ import AnnoFormats
 import AnnoRender
 import AppKit
 import MetalKit
+import simd
 
 /// Steuert, was die App anzeigt (Tab wechselt): Startbildschirm, Welt, Inselbrowser, Sprite-Viewer.
 @MainActor
@@ -28,6 +29,9 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
     private let mapScene: MapScene
     private let world: WorldSession
     private let islands: IslandBrowser
+    private let buildUI: BuildInterface
+    /// Letzte Mausposition beim Ziehen (zum Verschieben der Karte ohne Werkzeug).
+    private var lastDrag: SIMD2<Float>?
 
     private let bshFiles: [String]
     private var fileIndex: Int
@@ -62,6 +66,7 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         mapScene = MapScene(gameData: gameData, device: device)
         world = try WorldSession(gameData: gameData, buildings: buildings)
         islands = try IslandBrowser(gameData: gameData, buildings: buildings)
+        buildUI = try BuildInterface(device: device, gameData: gameData, buildings: buildings)
         audio = AudioController(gameData: gameData)
 
         bshFiles = gameData.files(withExtension: "bsh")
@@ -70,6 +75,7 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         view.delegate = self
         view.onKeyDown = { [weak self] event in self?.handleKey(event) ?? false }
         view.onPan = { [weak self] delta in self?.pan(by: delta) }
+        view.onMouse = { [weak self] event, point in self?.handleMouse(event, at: point) }
     }
 
     func startAudio() { audio.start() }
@@ -116,7 +122,16 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         case .title:
             let transform = ViewTransform.fit(virtualSize: Self.titleSize, drawableSize: drawableSize)
             renderer.draw([SpriteDraw(index: 0, position: .zero)], from: titleSheet, transform: transform, encoder: encoder)
-        case .world, .island:
+        case .world:
+            mapScene.draw(
+                renderer: renderer, encoder: encoder, drawableSize: drawableSize, backingScale: backingScale, timeMs: timeMs,
+                overlay: { [buildUI, world, timeMs] layout, library in
+                    buildUI.previewSprites(session: world, layout: layout, mapLibrary: library, timeMs: timeMs)
+                })
+            buildUI.draw(
+                renderer: renderer, encoder: encoder, drawableSize: drawableSize, backingScale: backingScale, session: world,
+                viewCorners: mapScene.viewCorners(viewSize: drawableSize / backingScale))
+        case .island:
             mapScene.draw(renderer: renderer, encoder: encoder, drawableSize: drawableSize, backingScale: backingScale, timeMs: timeMs)
         case .viewer:
             if let sheet = currentViewerSheet() {
@@ -175,7 +190,7 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         case .title:
             view.window?.title = "Open1602  ·  Tab: Welt / Inseln / Sprite-Viewer"
         case .world:
-            view.window?.title = "\(mapScene.title)  ·  N/P Szenario  G neue Welt  M Musik\(music)"
+            view.window?.title = "\(mapScene.title)  ·  Bauen: Leiste rechts, D Abreißen, Rechtsklick abbrechen  ·  N/P Szenario  G neue Welt  M Musik\(music)"
         case .island:
             view.window?.title = "\(mapScene.title)  ·  N/P Insel  M Musik\(music)"
         case .viewer:
@@ -220,10 +235,51 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         if mapScene.content !== islands { mapScene.show(islands) }
     }
 
+    // MARK: Maus
+
+    private func handleMouse(_ event: GameView.MouseEvent, at point: SIMD2<Float>) {
+        guard mode == .world else {
+            if event == .dragged, let last = lastDrag { pan(by: last - point) }
+            lastDrag = event == .up ? nil : point
+            return
+        }
+        let viewSize = SIMD2<Float>(Float(view.bounds.width), Float(view.bounds.height))
+        let panelX = viewSize.x - BuildInterface.panelWidth
+        let cell = point.x < panelX ? mapScene.pick(viewPoint: point, viewSize: viewSize) : nil
+        switch event {
+        case .moved:
+            buildUI.setHover(cell)
+        case .down:
+            lastDrag = point
+            if point.x >= panelX {
+                let local = SIMD2(point.x - panelX, point.y)
+                if let target = buildUI.minimapTarget(at: local, world: world.world) {
+                    mapScene.setFocus(target)
+                } else {
+                    _ = buildUI.clickPanel(at: local)
+                }
+            } else {
+                buildUI.mouseDown(at: cell)
+            }
+        case .dragged:
+            if buildUI.tool == .none, let last = lastDrag {
+                mapScene.pan(by: last - point)
+            }
+            lastDrag = point
+            buildUI.setHover(cell)
+        case .up:
+            lastDrag = nil
+            if point.x < panelX { buildUI.mouseUp(at: cell, session: world) }
+        case .rightDown:
+            buildUI.cancel()
+        }
+    }
+
     private func handleMapKey(_ event: NSEvent) -> Bool {
         let step: Float = event.modifierFlags.contains(.shift) ? 400 : 100
         do {
             switch event.keyCode {
+            case 53: buildUI.cancel()  // Esc
             case 123: mapScene.pan(by: SIMD2(-step, 0))  // ←
             case 124: mapScene.pan(by: SIMD2(step, 0))  // →
             case 125: mapScene.pan(by: SIMD2(0, step))  // ↓
@@ -239,6 +295,11 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
                     let delta = event.charactersIgnoringModifiers?.lowercased() == "n" ? 1 : -1
                     if mode == .world { try world.nextScenario(delta) } else { try islands.next(delta) }
                     mapScene.show(mode == .world ? world : islands)
+                case "d" where mode == .world: buildUI.toggleDemolish()
+                case "," where mode == .world: buildUI.rotate(-1)
+                case "." where mode == .world: buildUI.rotate(1)
+                case "[" where mode == .world: buildUI.cycle(-1)
+                case "]" where mode == .world: buildUI.cycle(1)
                 case "g" where mode == .world:
                     try world.reroll()
                     mapScene.show(world)
@@ -317,6 +378,46 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         configureMap(zoom: zoom, rotation: rotation)
         if panX != nil || panY != nil { mapScene.pan(by: SIMD2(panX ?? 0, panY ?? 0)) }
     }
+
+    /// Entwicklerhilfe (`--demo`): Kontor an der nächsten Küste, ein Feldweg, Wohnhäuser, dann Vorschau eines Hauses.
+    func buildDemoSettlement() {
+        guard let start = world.focus else { return }
+        let game = world.game
+        guard let kontor = game.buildings[2101], let road = game.buildings[411], let house = game.buildings[605] else { return }
+        func nearest(_ type: BuildingType, around c: SIMD2<Float>, radius: Int) -> (x: Int, y: Int)? {
+            var best: (Int, Int, Float)?
+            for y in Int(c.y) - radius...Int(c.y) + radius {
+                for x in Int(c.x) - radius...Int(c.x) + radius {
+                    let d = simd_distance(SIMD2(Float(x), Float(y)), c)
+                    if best == nil || d < best!.2, world.game.check(type, x: x, y: y, rotation: 0, player: 0).isEmpty {
+                        best = (x, y, d)
+                    }
+                }
+            }
+            return best.map { ($0.0, $0.1) }
+        }
+        guard let k = nearest(kontor, around: start, radius: 80) else { return }
+        _ = world.mutateGame { $0.build(kontor, x: k.x, y: k.y, rotation: 0, player: 0) }
+        let center = SIMD2(Float(k.x), Float(k.y))
+        if let r = nearest(road, around: center + SIMD2(3, 3), radius: 8) {
+            let path = BuildInterface.roadPath(from: r, to: (r.x + 6, r.y + 4))
+            _ = world.mutateGame { $0.buildRoad(road, path: path, player: 0) }
+        }
+        for _ in 0..<4 {
+            if let h = nearest(house, around: center + SIMD2(4, 6), radius: 10) {
+                _ = world.mutateGame { $0.build(house, x: h.x, y: h.y, rotation: 0, player: 0) }
+            }
+        }
+        mapScene.show(world)
+        mapScene.pan(by: .zero)
+        // Vorschau eines weiteren Hauses.
+        buildUI.cycle(0)
+        _ = buildUI.clickPanel(at: SIMD2(BuildInterface.categoryRects[BuildCategory.housing.rawValue].x + 5, BuildInterface.categoryRects[BuildCategory.housing.rawValue].y + 5))
+        buildUI.setHover(nearest(house, around: center + SIMD2(2, 8), radius: 10))
+        focusMap(on: center + SIMD2(3, 4))
+    }
+
+    func focusMap(on p: SIMD2<Float>) { mapScene.setFocus(p) }
 
     private func configureMap(zoom: Int?, rotation: Int?) {
         if let zoom, let level = ZoomLevel(rawValue: zoom) { mapScene.setZoom(level) }

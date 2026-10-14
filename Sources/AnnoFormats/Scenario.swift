@@ -63,6 +63,8 @@ public struct Scenario: Sendable {
     public let natives: [Climate: Int]
     /// Beschreibungstext (Zeilen).
     public let text: [String]
+    /// Ladung der Startschiffe (je Schiff: Warenname aus `figuren.cod`/`haeuser.cod` → Menge).
+    public let shipCargo: [[String: Int]]
 
     public init(document doc: CODDocument) throws {
         guard let scene = doc.items("SZENE").first else {
@@ -82,6 +84,15 @@ public struct Scenario: Sendable {
         }
         self.natives = natives
 
+        shipCargo = Self.groupEntries(scene.child("SZENE_SHIP")).map { entries in
+            var cargo: [String: Int] = [:]
+            for entry in entries where entry.key == "Ware" {
+                if let name = entry.values.first?.symbol, let amount = entry.values.dropFirst().first?.intValue {
+                    cargo[name, default: 0] += amount
+                }
+            }
+            return cargo
+        }
         ships = Self.groups(scene.child("SZENE_SHIP")).map { fields in
             Ship(
                 player: fields["Playernr"]?.first?.intValue ?? 0,

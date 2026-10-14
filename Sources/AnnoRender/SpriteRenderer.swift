@@ -26,11 +26,20 @@ public struct ViewTransform: Sendable, Equatable {
 public struct SpriteDraw: Sendable, Equatable {
     public var index: Int
     public var position: SIMD2<Float>
+    /// Einfärbung: Farbe und Stärke (A = 0 … 255), z. B. für die Bauvorschau.
+    public var tint: SIMD4<UInt8>
+    /// Zielgröße in virtuellen Pixeln (`nil` = Bildgröße), z. B. für skalierte Minikarte oder Rahmenlinien.
+    public var size: SIMD2<Float>?
 
-    public init(index: Int, position: SIMD2<Float>) {
+    public init(index: Int, position: SIMD2<Float>, tint: SIMD4<UInt8> = .zero, size: SIMD2<Float>? = nil) {
         self.index = index
         self.position = position
+        self.tint = tint
+        self.size = size
     }
+
+    public static let validTint = SIMD4<UInt8>(80, 255, 80, 90)
+    public static let invalidTint = SIMD4<UInt8>(255, 40, 40, 140)
 }
 
 /// Zeichnet palettenindizierte Sprites mit Metal.
@@ -104,9 +113,12 @@ public final class SpriteRenderer {
             guard p.width > 0 else { continue }
             let size = SIMD2<Float>(Float(p.width), Float(p.height))
             instances.append(SpriteInstance(
-                dst: SIMD4(lowHalf: sprite.position, highHalf: size),
+                dst: SIMD4(lowHalf: sprite.position, highHalf: sprite.size ?? size),
                 src: SIMD4(Float(p.x), Float(p.y), size.x, size.y),
-                extra: SIMD4(UInt32(p.page), 0, 0, 0)))
+                extra: SIMD4(
+                    UInt32(p.page),
+                    UInt32(sprite.tint.x) | UInt32(sprite.tint.y) << 8 | UInt32(sprite.tint.z) << 16 | UInt32(sprite.tint.w) << 24,
+                    0, 0)))
         }
         guard !instances.isEmpty else { return }
 

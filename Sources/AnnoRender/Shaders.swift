@@ -8,7 +8,7 @@ enum Shaders {
         struct Instance {
             float4 dst;   // x, y, w, h in virtuellen Pixeln (y nach unten)
             float4 src;   // x, y, w, h in Atlaspixeln
-            uint4 extra;  // x = Atlasseite
+            uint4 extra;  // x = Atlasseite, y = Einfärbung RGBA8
         };
 
         // Muss zu SpriteRenderer.maxPages passen.
@@ -26,6 +26,7 @@ enum Shaders {
             float2 atlas;
             float4 srcRect [[flat]];
             uint page [[flat]];
+            uint tint [[flat]];
         };
 
         vertex VOut sprite_vertex(uint vid [[vertex_id]],
@@ -41,6 +42,7 @@ enum Shaders {
             out.atlas = inst.src.xy + corner * inst.src.zw;
             out.srcRect = inst.src;
             out.page = inst.extra.x;
+            out.tint = inst.extra.y;
             return out;
         }
 
@@ -56,7 +58,12 @@ enum Shaders {
             if (texel.g == 0) {
                 discard_fragment();
             }
-            return palette.read(uint2(texel.r, 0));
+            float4 color = palette.read(uint2(texel.r, 0));
+            if (in.tint != 0) {
+                float4 tint = unpack_unorm4x8_to_float(in.tint);
+                color.rgb = mix(color.rgb, tint.rgb, tint.a);
+            }
+            return color;
         }
         """
 }

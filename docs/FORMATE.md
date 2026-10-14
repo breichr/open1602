@@ -60,9 +60,22 @@ Ein Export aller 37 Dateien ergab 48 380 Bilder. 8 davon sind leer (0×0, in `St
 
 Ein Chunk `COL` mit 1024 Bytes, also 256 × (R, G, B, 0).
 
-## ZEI – Bitmap-Font 🟡
+## ZEI – Bitmap-Font ✅
 
-Ein Chunk `ZEI` mit einer Offset-Tabelle wie bei BSH. Vermutlich ist pro Zeichen ein RLE-Bild abgelegt. Die Zuordnung zum Zeichensatz (CP-1252?) muss noch geprüft werden.
+Ein Chunk `ZEI` mit einer Offset-Tabelle wie bei BSH, ein RLE-Bild pro Zeichen.
+- **Zeichenbereich:** 224 Zeichen für die Codes 32–255 (Latin-1). `ZEI24V`/`ZEI28V` haben nur 33 Zeichen, vermutlich Ziffern.
+- **Laufweite:** Die Breite im Kopf ist die Laufweite. Für Unterschneidungen ragen manche Zeichen 1 bis 3 Pixel darüber hinaus.
+
+## GAD – Bauleiste (`BAU.GAD`) ✅
+
+Positionen relativ zur 256 Pixel breiten Leiste rechts. Bildnummern in `TOOLS.BSH`:
+- **Kategorien:** 22–29 (gewählt 31–38) bei y = 623/692. Reihenfolge: Militär, Wege, Bergbau, Handwerk, Öffentlich, Farmen, Hafen, Wohnhäuser.
+- **Blättern:** Pfeile 40/41.
+- **Titel:** Titelleiste 172 bei (6, 354).
+- **Gebäudesymbol:** `BAUHAUS.BSH[Baugfx]` im Feld (48, 390, 160×110).
+- **Kostensymbole:** 46 Geld, 47 Ziegel, 48 Werkzeug, 49 Holz, 52 Betriebskosten, bei y = 564/594.
+
+Welche Gebäude in welcher Kategorie stehen, steht nicht in den Daten. Open1602 leitet es aus der ID-Gruppe ab (`Id / 100`).
 
 ## COD – verschlüsselte Skripte ✅
 

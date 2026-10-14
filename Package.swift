@@ -23,12 +23,15 @@ let package = Package(
         // Reine Parser für die Originaldaten. Nur Swift-Standardbibliothek und Foundation,
         // damit das Modul auch auf Linux/Windows baut.
         .target(name: "AnnoFormats"),
+        // Spielregeln und Spielstand, ohne Darstellung.
+        .target(name: "AnnoSim", dependencies: ["AnnoFormats"]),
         // Metal-Renderer: Sprite-Atlanten, Palettenshader.
         .target(name: "AnnoRender", dependencies: ["AnnoFormats"]),
         // macOS-App (AppKit).
-        .executableTarget(name: "Open1602", dependencies: ["AnnoFormats", "AnnoRender"]),
+        .executableTarget(name: "Open1602", dependencies: ["AnnoFormats", "AnnoSim", "AnnoRender"]),
         .executableTarget(name: "anno-tool", dependencies: ["AnnoFormats"]),
         .testTarget(name: "AnnoFormatsTests", dependencies: ["AnnoFormats"], swiftSettings: testSettings),
+        .testTarget(name: "AnnoSimTests", dependencies: ["AnnoSim", "AnnoFormats"], swiftSettings: testSettings),
         .testTarget(name: "AnnoRenderTests", dependencies: ["AnnoRender", "AnnoFormats"], swiftSettings: testSettings),
     ]
 )

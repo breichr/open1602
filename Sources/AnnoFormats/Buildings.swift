@@ -18,6 +18,20 @@ public struct BuildingType: Sendable, Equatable {
     public let animationStride: Int
     /// Millisekunden pro Animationsschritt (`nil` = steht still, `TIMENEVER`).
     public var animationTime: Int? = nil
+    /// Baukosten; `nil` = nicht baubar.
+    public var buildCost: BuildCost? = nil
+    /// Symbol im Baumenü (`BAUHAUS.BSH`).
+    public var buildIcon: Int? = nil
+    /// Art der Produktion (`HAUS_PRODTYP.Kind`, z. B. `KONTOR`, `HANDWERK`).
+    public var production: String? = nil
+    /// Einflussradius (`HAUS_PRODTYP.Radius`) in Feldern, falls als Zahl angegeben.
+    public var radius: Int? = nil
+
+    /// Kategorie im Baumenü, falls baubar.
+    public var buildCategory: BuildCategory? {
+        guard buildCost != nil, buildIcon != nil else { return nil }
+        return BuildCategory.forGroup(id / 100)
+    }
     /// Beim Bauen wird zufällig eine von `randomCount` Varianten gewählt (ID-Abstand `randomStride`),
     /// z. B. 11 Baumarten oder 7 Wohnhäuser. Für die Bildauswahl spielt das keine Rolle.
     public let randomCount: Int
@@ -66,6 +80,43 @@ public struct BuildingType: Sendable, Equatable {
     }
 }
 
+/// Baukosten aus `HAUS_BAUKOST`.
+public struct BuildCost: Sendable, Equatable {
+    public var money: Int
+    public var wood: Int
+    public var tools: Int
+    public var bricks: Int
+    public var cannons: Int
+
+    public init(money: Int = 0, wood: Int = 0, tools: Int = 0, bricks: Int = 0, cannons: Int = 0) {
+        self.money = money
+        self.wood = wood
+        self.tools = tools
+        self.bricks = bricks
+        self.cannons = cannons
+    }
+}
+
+/// Kategorien des Baumenüs (Reihenfolge der Symbole TOOLS #22–29).
+public enum BuildCategory: Int, Sendable, CaseIterable {
+    case military, roads, mining, craft, publicBuildings, farms, harbour, housing
+
+    /// Kategorie aus der ID-Gruppe (`Id / 100`, z. B. 4 = Straßen, 21 = Kontor/Hafen).
+    public static func forGroup(_ group: Int) -> BuildCategory? {
+        switch group {
+        case 3, 14, 25: .military
+        case 4, 16: .roads
+        case 24: .mining
+        case 5: .craft
+        case 8, 19: .publicBuildings
+        case 13, 15, 20, 28: .farms
+        case 10, 21, 22: .harbour
+        case 6: .housing
+        default: nil
+        }
+    }
+}
+
 /// Alle Gebäudetypen aus `haeuser.cod`, nach Insel-ID.
 public struct BuildingTable: Sendable {
     public let types: [Int: BuildingType]
@@ -92,6 +143,16 @@ public struct BuildingTable: Sendable {
                 randomStride: item.int("RandAdd") ?? 0,
                 elevation: item.int("Posoffs") ?? 0))
             list[list.count - 1].animationTime = item.int("AnimTime").flatMap { $0 > 0 ? $0 : nil }
+            if let cost = item.child("HAUS_BAUKOST") {
+                list[list.count - 1].buildCost = BuildCost(
+                    money: cost.int("Money") ?? 0, wood: cost.int("Holz") ?? 0, tools: cost.int("Werkzeug") ?? 0,
+                    bricks: cost.int("Ziegel") ?? 0, cannons: cost.int("Kanon") ?? 0)
+            }
+            list[list.count - 1].buildIcon = item.int("Baugfx")
+            if let prod = item.child("HAUS_PRODTYP") {
+                list[list.count - 1].production = prod.symbol("Kind")
+                list[list.count - 1].radius = prod.int("Radius")
+            }
         }
         self.init(types: list)
     }
