@@ -416,14 +416,20 @@ final class GameController: NSObject, MTKViewDelegate, NSWindowDelegate {
         mapScene.pan(by: .zero)
         // Vorschau: entweder ein weiteres Haus oder (mit `--demo-road`) ein geplanter Feldweg mit Kurve.
         let category: BuildCategory =
-            CommandLine.arguments.contains("--demo-road") ? .roads : CommandLine.arguments.contains("--demo-market") ? .publicBuildings : .housing
+            CommandLine.arguments.contains("--demo-road") ? .roads
+            : CommandLine.arguments.contains("--demo-market") ? .publicBuildings
+            : CommandLine.arguments.contains("--demo-popup") ? .farms : .housing
+        // Kategorie öffnen (Popup) und – außer bei --demo-popup – den ersten Eintrag wählen.
         _ = buildUI.clickPanel(at: SIMD2(BuildInterface.categoryRects[category.rawValue].x + 5, BuildInterface.categoryRects[category.rawValue].y + 5))
+        if !CommandLine.arguments.contains("--demo-popup") { buildUI.cycle(0); buildUI.closePopup() }
         if category == .roads {
             buildUI.cycle(1)  // Feldweg statt Steinstraße
             if let a = nearest(road, around: center + SIMD2(-4, 6), radius: 10) {
                 buildUI.mouseDown(at: a)
                 buildUI.setHover((a.x + 5, a.y + 4))
             }
+        } else if CommandLine.arguments.contains("--demo-popup") {
+            buildUI.setHover(nil)
         } else if category == .publicBuildings, let market = game.buildings[809] {
             while buildUI.selected?.id != 809 { buildUI.cycle(1) }
             buildUI.setHover(nearest(market, around: center + SIMD2(2, 9), radius: 12))

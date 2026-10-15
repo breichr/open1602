@@ -181,6 +181,28 @@ public struct Game: Sendable {
         settlements[index].stock.add(goods)
     }
 
+    /// Gebäude im Einflussbereich eines Spielers (Ursprungsfeld, Weltkoordinaten).
+    public func buildings(of player: Int) -> [(type: BuildingType, x: Int, y: Int)] {
+        var result: [(type: BuildingType, x: Int, y: Int)] = []
+        for settlement in settlements where settlement.player == player {
+            let island = world.islands[settlement.island]
+            for y in 0..<island.map.height {
+                for x in 0..<island.map.width {
+                    guard let tile = island.map.tile(x: x, y: y), tile.dx == 0, tile.dy == 0, tile.building.buildCost != nil,
+                        isInfluenced(x: island.x + x, y: island.y + y, by: player)
+                    else { continue }
+                    result.append((tile.building, island.x + x, island.y + y))
+                }
+            }
+        }
+        return result
+    }
+
+    /// Summe der Betriebskosten aller Gebäude eines Spielers.
+    public func upkeep(of player: Int) -> Int {
+        buildings(of: player).reduce(0) { $0 + ($1.type.upkeep ?? 0) }
+    }
+
     // MARK: Bauen
 
     /// Baut `type`, wenn es erlaubt ist. Liefert die Probleme, falls nicht gebaut wurde.

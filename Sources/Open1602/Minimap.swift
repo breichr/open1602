@@ -2,7 +2,8 @@ import AnnoFormats
 import AnnoRender
 import Metal
 
-/// Draufsicht der Welt (ein Pixel je Feld) als palettenindiziertes Bild, plus ein weißes Pixel für Rahmen.
+/// Draufsicht der Welt im Stil der Pergamentkarte des Originals: Meer durchsichtig, Inseln braun,
+/// Bebauung rot (ein Pixel je Feld). Dazu ein weißes und ein schwarzes Pixel für Rahmen und Flächen.
 @MainActor
 final class Minimap {
     private let device: MTLDevice
@@ -60,9 +61,17 @@ final class Minimap {
         self.revision = revision
         var image = IndexedImage(width: world.width, height: world.height, type: 1)
         image.opaque = Array(repeating: true, count: world.width * world.height)
+        let land = index(112, 72, 40)
+        let built = index(190, 40, 30)
+        let builtKinds: Set<String> = ["GEBAEUDE", "HQ", "STRASSE", "PLATZ", "HAFEN", "PIER", "STRANDHAUS", "MINE", "TURM", "MAUER", "TOR", "BRUECKE"]
         for y in 0..<world.height {
             for x in 0..<world.width {
-                image.indices[y * world.width + x] = color(for: world.tile(x: x, y: y))
+                let i = y * world.width + x
+                guard let tile = world.tile(x: x, y: y), tile.building.elevation > 0 || tile.building.kind.hasPrefix("STRAND") else {
+                    image.opaque[i] = false
+                    continue
+                }
+                image.indices[i] = builtKinds.contains(tile.building.kind) ? built : land
             }
         }
         var white = IndexedImage(width: 1, height: 1, type: 1)
