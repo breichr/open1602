@@ -450,14 +450,18 @@ final class BuildInterface {
 
         // Statuszeile oben: Geld, Werkzeug, Holz, Ziegel – im Baumodus mit den Kosten in Klammern (wie im Original).
         let player = game.players.indices.contains(Self.player) ? game.players[Self.player] : nil
+        // Wie im Original: Geld steht immer da, Werkzeug/Holz/Ziegel nur über einer eigenen Insel (mit Kontor).
         let island = hover.flatMap { game.world.islandIndex(atX: $0.x, y: $0.y) }
-        let stock = island.flatMap { game.settlement(player: Self.player, island: $0)?.stock } ?? player?.shipCargo ?? Stock()
+        let ownStock = island.flatMap { game.settlement(player: Self.player, island: $0)?.stock }
         let cost = selected?.buildCost
-        let entries: [(Int, Int, Int?)] = [
-            (Self.gfxCoin, player?.money ?? 0, cost?.money), (Self.gfxTools, stock[.tools], cost?.tools),
-            (Self.gfxWood, stock[.wood], cost?.wood), (Self.gfxBricks, stock[.bricks], cost?.bricks),
-        ]
-        let column = panelX / Float(entries.count + 1)
+        var entries: [(Int, Int, Int?)] = [(Self.gfxCoin, player?.money ?? 0, cost?.money)]
+        if let stock = ownStock {
+            entries += [
+                (Self.gfxTools, stock[.tools], cost?.tools), (Self.gfxWood, stock[.wood], cost?.wood),
+                (Self.gfxBricks, stock[.bricks], cost?.bricks),
+            ]
+        }
+        let column = panelX / 5
         for (i, (gfx, value, price)) in entries.enumerated() {
             let x = 10 + Float(i) * column
             draws.append(SpriteDraw(index: library.index("TOOLS", gfx), position: SIMD2(x, 6)))

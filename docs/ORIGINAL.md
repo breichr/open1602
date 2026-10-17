@@ -42,6 +42,54 @@ Notizen aus Gameplay-Videos der Originalversion (1024×768). Sie dienen als Refe
 - **Bevölkerung:** Ab etwa 50–100 Einwohnern steigen Pioniere zu Siedlern auf. Siedler wollen zusätzlich zu Nahrung auch Stoffe und eine Kapelle.
 - **Bilanz:** Am Anfang ist sie negativ (−15 … −50), sie dreht mit wachsenden Steuern ins Plus.
 
+## Weitere Beobachtungen (Folgen 4, 55, 61, 79, 88, 96)
+
+Ausgewertet wurden Übersichtsbögen (ein Bild alle 75 s) und einzelne Seitenleisten in voller Auflösung. Die Videos zeigen die Spielstände der Kampagnen „Bodenschätze“, „Monopol“, „Piratenplage“, „Eindringling“ und „Festung“ mit bis zu 4400 Einwohnern.
+
+### Statuszeile oben
+
+- Das **Geld** steht immer da. Werkzeug, Holz, Ziegel und Einwohner erscheinen nur, solange die Maus über einer eigenen Insel mit Kontor ist. Über dem Meer oder fremden Inseln steht nur das Geld.
+- Beim Bauen stehen die Kosten des Gebäudes in Klammern hinter den Vorräten, z. B. `9177 (150)`.
+
+### Untere Leiste
+
+Sie zeigt rechts einen Hinweis zu dem, was unter der Maus liegt:
+- **Karte:** Name von Gebäude, Betrieb oder Wald. Über freiem Land steht die Fruchtbarkeit, z. B. „Geeignet für: Tabak: 50 % – Weintrauben: 50 % – Zuckerrohr: 100 %“.
+- **Schaltflächen:** Erklärtext, z. B. „Waren zwischen Kontor und Schiff austauschen“, „Automatische Handelsroute festlegen“, „Karte rechtsherum drehen“, „Baumodus einschalten“, „Warenliste durchgehen“, „Waren einkaufen“, „Weiße Flagge streichen“, „Friedensvertrag brechen“, „Schiffsname“.
+- **Warenraster:** Vorrat, z. B. „42t Nahrung“.
+
+### Schiff anklicken
+
+- **Titelleiste:** Schiffsname, rechts ein Anker.
+- **Kanonen:** Anzahl mit Kanonensymbol, daneben ein roter Lebensbalken.
+- **Reparieren:** Hammer auf einem Schiffssymbol, nur bei Schaden.
+- **Versenken:** Schiff mit rotem Kreuz.
+- **Untere Reihe:** Hand (Anhalten), Schiff mit rotem Pfeil und „?“ (Ziel/Route wählen), Schiff mit Münze (Handel).
+- **Laderaum:** 2×4 Felder (kleine Schiffe nur 1×4 bzw. 2×3). Jedes Feld zeigt das Warensymbol mit einem roten Mengenbalken am Rand.
+- **Mehrere Schiffe:** Das Panel „Flottenbefehle“ zeigt Schilde und Flaggen (Angriffsmodus, Kurs).
+- **Weiße Flagge:** Ein Symbol links, das man „streichen“ kann (Kapitulation).
+
+### Piratennest
+
+Panel „Piratennest“ mit Piratenporträt, Hinweis „Es lohnt sich immer, in ein friedlicheres Leben zu investieren!“ und einem Holzschild „Schutzgeld“. Bei „Kostenpunkt: …“ (9600) kauft man Frieden.
+
+### Diplomatie
+
+Der Hauptschalter „?“ zeigt zu jedem Gegner („Roter Spieler“, „Blauer Spieler“, „Gelber Spieler“) Schaltflächen für Handels- und Friedensverträge. Ein bestehender Vertrag kann gebrochen werden.
+
+### Minikarte
+
+Sie zeigt die Territorien der Spieler in ihren Farben (rot, blau, gelb, später auch grau), freie Inseln braun und Schiffe als blaue Punkte. Die Bedeutung von Grau ist unklar.
+
+### Status
+
+Ab 2000 Einwohnern: Einwohner, Steuererträge (3596), Betriebskosten (2350), Heereskosten (570), Verkaufserlöse, Einkaufskosten, Bilanz (grün/rot mit Pfeil), Punkte (11291).
+
+### Offen für die Umsetzung
+
+- Das Einwohnersymbol oben ist ein Schild in der Spielerfarbe (TOOLS #63–66). Die Zuordnung der Farben steht noch aus.
+- Flottenbefehle, Diplomatie und Schutzgeld brauchen die Spiellogik aus M6/M7.
+
 ## Externe Referenzen (für M5, gegen `haeuser.cod` zu prüfen)
 
 ### Baukosten
